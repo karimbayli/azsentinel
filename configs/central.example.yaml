@@ -10,7 +10,7 @@ server:
 
 database:
   host: "${SENTINEL_DB_HOST:-localhost}"
-  port: 5432
+  port: ${SENTINEL_DB_PORT:-5432}
   user: "${SENTINEL_DB_USER:-sentinel}"
   password: "${SENTINEL_DB_PASSWORD:-sentinel_secret}"
   dbname: "${SENTINEL_DB_NAME:-sentinel}"
