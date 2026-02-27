@@ -1,0 +1,118 @@
+# ============================================================
+# Sentinel V2 — Probe Agent Configuration
+# Copy to configs/probe.yaml and edit for each node
+# ============================================================
+
+node_id: "${SENTINEL_NODE_ID:-node-eu}"
+region: "${SENTINEL_REGION:-eu-frankfurt}"
+country: "${SENTINEL_COUNTRY:-DE}"
+central_url: "${SENTINEL_CENTRAL_URL:-https://sentinel.example.com}"
+hmac_secret: "${SENTINEL_HMAC_SECRET}"
+probe_interval: 60s
+log_level: "info"
+
+buffer:
+  db_path: "/var/lib/sentinel/buffer.db"
+  max_size: 10000
+
+# Same target list as central — probed from this vantage point
+targets:
+  # Government
+  - url: "https://e-gov.az"
+    category: "GOV"
+    criticality: 10
+    enabled: true
+    display_name: "E-Government Portal"
+  - url: "https://asan.gov.az"
+    category: "GOV"
+    criticality: 10
+    enabled: true
+    display_name: "ASAN Service"
+  - url: "https://taxes.gov.az"
+    category: "GOV"
+    criticality: 8
+    enabled: true
+    display_name: "Tax Service"
+  - url: "https://president.az"
+    category: "GOV"
+    criticality: 7
+    enabled: true
+    display_name: "President of Azerbaijan"
+
+  # Banking
+  - url: "https://abb-bank.az"
+    category: "BANK"
+    criticality: 9
+    enabled: true
+    display_name: "ABB Bank"
+  - url: "https://pashabank.az"
+    category: "BANK"
+    criticality: 9
+    enabled: true
+    display_name: "PASHA Bank"
+  - url: "https://kapitalbank.az"
+    category: "BANK"
+    criticality: 8
+    enabled: true
+    display_name: "Kapital Bank"
+  - url: "https://rabitabank.az"
+    category: "BANK"
+    criticality: 7
+    enabled: true
+    display_name: "Rabitabank"
+
+  # ISP
+  - url: "https://delta.az"
+    category: "ISP"
+    criticality: 7
+    enabled: true
+    display_name: "Delta Telecom"
+  - url: "https://aztelekom.az"
+    category: "ISP"
+    criticality: 7
+    enabled: true
+    display_name: "Aztelekom"
+  - url: "https://bakcell.az"
+    category: "ISP"
+    criticality: 6
+    enabled: true
+    display_name: "Bakcell"
+  - url: "https://nar.az"
+    category: "ISP"
+    criticality: 6
+    enabled: true
+    display_name: "Nar Mobile"
+
+  # Media
+  - url: "https://oxu.az"
+    category: "MEDIA"
+    criticality: 6
+    enabled: true
+    display_name: "Oxu.az"
+  - url: "https://report.az"
+    category: "MEDIA"
+    criticality: 6
+    enabled: true
+    display_name: "Report.az"
+  - url: "https://1news.az"
+    category: "MEDIA"
+    criticality: 5
+    enabled: true
+    display_name: "1news.az"
+
+  # Anchors
+  - url: "https://1.1.1.1"
+    category: "ANCHOR"
+    criticality: 0
+    enabled: true
+    display_name: "Cloudflare DNS"
+  - url: "https://google.com"
+    category: "ANCHOR"
+    criticality: 0
+    enabled: true
+    display_name: "Google"
+  - url: "https://cloudflare.com"
+    category: "ANCHOR"
+    criticality: 0
+    enabled: true
+    display_name: "Cloudflare"

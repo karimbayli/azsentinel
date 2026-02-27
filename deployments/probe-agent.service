@@ -1,0 +1,31 @@
+[Unit]
+Description=Sentinel V2 Probe Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sentinel
+Group=sentinel
+ExecStart=/usr/local/bin/sentinel-probe --config /etc/sentinel/probe.yaml
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/sentinel
+PrivateTmp=true
+
+# Environment
+Environment=GOMAXPROCS=2
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sentinel-probe
+
+[Install]
+WantedBy=multi-user.target

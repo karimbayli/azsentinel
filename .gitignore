@@ -1,0 +1,81 @@
+# ============================================================
+# Sentinel V2 / UpDown.az — Git Ignore
+# ============================================================
+
+# ── Binaries ──
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+sentinel-central
+sentinel-probe
+
+# ── Go ──
+vendor/
+coverage.out
+coverage.html
+*.test
+*.prof
+*.pprof
+__debug_bin*
+
+# ── Environment & Secrets ──
+.env
+.env.local
+.env.production
+configs/central.yaml
+configs/probe.yaml
+
+# ── IDE ──
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# ── OS ──
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ── Docker ──
+docker-compose.override.yml
+
+# ── Database files ──
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sql.gz
+
+# ── Logs ──
+*.log
+logs/
+
+# ── Backups ──
+backups/
+*.bak
+*.backup
+
+# ── Grafana local data ──
+deployments/grafana/data/
+
+# ── Temporary files ──
+tmp/
+*.tmp
+*.temp
+
+# ── Certificates (if generated locally) ──
+*.pem
+*.key
+*.crt
+*.csr
+!configs/*.example.*

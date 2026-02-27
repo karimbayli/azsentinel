@@ -1,0 +1,179 @@
+# ============================================================
+# Sentinel V2 — Central Server Configuration
+# Copy to configs/central.yaml and edit values
+# ============================================================
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  hmac_secret: "${SENTINEL_HMAC_SECRET}"
+
+database:
+  host: "${SENTINEL_DB_HOST:-localhost}"
+  port: 5432
+  user: "${SENTINEL_DB_USER:-sentinel}"
+  password: "${SENTINEL_DB_PASSWORD:-sentinel_secret}"
+  dbname: "${SENTINEL_DB_NAME:-sentinel}"
+  sslmode: "disable"
+
+probe:
+  interval_seconds: 60
+  tcp_timeout: 5s
+  http_timeout: 10s
+
+bgp:
+  enabled: true
+  ws_url: "wss://ris-live.ripe.net/v1/ws/"
+  collector: "rrc21"
+  watch_asns: [29049, 31721, 39232, 34377, 57021]
+
+social:
+  enabled: false  # Set to true and configure bot_token/channel_ids
+  bot_token: "${SENTINEL_TELEGRAM_BOT_TOKEN}"
+  channel_ids: []
+  window_minutes: 15
+  baseline_days: 30
+  bot_filter_rate: 50
+
+correlation:
+  interval_seconds: 30
+  window_minutes: 5
+  weight_node: 0.5
+  weight_bgp: 0.3
+  weight_social: 0.2
+  node_fail_ratio: 0.8
+  social_spike_x: 3.0
+
+alert:
+  enabled: false  # Set to true and configure bot_token/chat_id
+  bot_token: "${SENTINEL_TELEGRAM_BOT_TOKEN}"
+  chat_id: 0
+  dedup_minutes: 5
+
+calibration: false
+log_level: "info"
+
+# ============================================================
+# Vantage Nodes — Register all probe nodes here
+# ============================================================
+nodes:
+  - node_id: "node-az"
+    region: "az-baku"
+    country: "AZ"
+    enabled: true
+  - node_id: "node-eu"
+    region: "eu-frankfurt"
+    country: "DE"
+    enabled: true
+  - node_id: "node-us"
+    region: "us-east"
+    country: "US"
+    enabled: true
+  - node_id: "node-asia"
+    region: "asia-singapore"
+    country: "SG"
+    enabled: true
+
+# ============================================================
+# Monitored Targets
+# ============================================================
+targets:
+  # Government
+  - url: "https://e-gov.az"
+    category: "GOV"
+    criticality: 10
+    enabled: true
+    display_name: "E-Government Portal"
+  - url: "https://asan.gov.az"
+    category: "GOV"
+    criticality: 10
+    enabled: true
+    display_name: "ASAN Service"
+  - url: "https://taxes.gov.az"
+    category: "GOV"
+    criticality: 8
+    enabled: true
+    display_name: "Tax Service"
+  - url: "https://president.az"
+    category: "GOV"
+    criticality: 7
+    enabled: true
+    display_name: "President of Azerbaijan"
+
+  # Banking
+  - url: "https://abb-bank.az"
+    category: "BANK"
+    criticality: 9
+    enabled: true
+    display_name: "ABB Bank"
+  - url: "https://pashabank.az"
+    category: "BANK"
+    criticality: 9
+    enabled: true
+    display_name: "PASHA Bank"
+  - url: "https://kapitalbank.az"
+    category: "BANK"
+    criticality: 8
+    enabled: true
+    display_name: "Kapital Bank"
+  - url: "https://rabitabank.az"
+    category: "BANK"
+    criticality: 7
+    enabled: true
+    display_name: "Rabitabank"
+
+  # ISP
+  - url: "https://delta.az"
+    category: "ISP"
+    criticality: 7
+    enabled: true
+    display_name: "Delta Telecom"
+  - url: "https://aztelekom.az"
+    category: "ISP"
+    criticality: 7
+    enabled: true
+    display_name: "Aztelekom"
+  - url: "https://bakcell.az"
+    category: "ISP"
+    criticality: 6
+    enabled: true
+    display_name: "Bakcell"
+  - url: "https://nar.az"
+    category: "ISP"
+    criticality: 6
+    enabled: true
+    display_name: "Nar Mobile"
+
+  # Media
+  - url: "https://oxu.az"
+    category: "MEDIA"
+    criticality: 6
+    enabled: true
+    display_name: "Oxu.az"
+  - url: "https://report.az"
+    category: "MEDIA"
+    criticality: 6
+    enabled: true
+    display_name: "Report.az"
+  - url: "https://1news.az"
+    category: "MEDIA"
+    criticality: 5
+    enabled: true
+    display_name: "1news.az"
+
+  # Anchors (sanity checks — never alert)
+  - url: "https://1.1.1.1"
+    category: "ANCHOR"
+    criticality: 0
+    enabled: true
+    display_name: "Cloudflare DNS"
+  - url: "https://google.com"
+    category: "ANCHOR"
+    criticality: 0
+    enabled: true
+    display_name: "Google"
+  - url: "https://cloudflare.com"
+    category: "ANCHOR"
+    criticality: 0
+    enabled: true
+    display_name: "Cloudflare"

@@ -1,0 +1,157 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "title": "Overall Target Status",
+      "type": "table",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "${DS_TIMESCALEDB}" },
+      "targets": [
+        {
+          "rawSql": "SELECT DISTINCT ON (target_url) target_url AS \"Target\", status AS \"Status\", ROUND(confidence::numeric * 100, 1) AS \"Confidence %\", total_nodes AS \"Nodes\", failing_nodes AS \"Failing\", time AS \"Last Check\" FROM correlation_results ORDER BY target_url, time DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }] } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Status" }, "properties": [{ "id": "mappings", "value": [{ "type": "value", "options": { "HEALTHY": { "color": "green", "text": "🟢 HEALTHY" }, "DEGRADED": { "color": "yellow", "text": "🟡 DEGRADED" }, "PARTIAL_OUTAGE": { "color": "orange", "text": "🟠 PARTIAL" }, "MAJOR_OUTAGE": { "color": "red", "text": "🔴 MAJOR" } } }] }] }
+        ]
+      }
+    },
+    {
+      "title": "Uptime % by Target (24h)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "postgres", "uid": "${DS_TIMESCALEDB}" },
+      "targets": [
+        {
+          "rawSql": "SELECT time_bucket('15 minutes', time) AS time, target_url, ROUND(100.0 * COUNT(*) FILTER (WHERE tcp_success AND http_status BETWEEN 200 AND 399) / NULLIF(COUNT(*), 0), 2) AS uptime_pct FROM probe_results WHERE $__timeFilter(time) AND node_reliable = true GROUP BY 1, target_url ORDER BY 1",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 90 }, { "color": "green", "value": 99 }] } } }
+    },
+    {
+      "title": "Average Latency by Target (ms)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "type": "postgres", "uid": "${DS_TIMESCALEDB}" },
+      "targets": [
+        {
+          "rawSql": "SELECT time_bucket('5 minutes', time) AS time, target_url, AVG(total_ms)::int AS avg_latency FROM probe_results WHERE $__timeFilter(time) AND node_reliable = true AND total_ms > 0 GROUP BY 1, target_url ORDER BY 1",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    },
+    {
+      "title": "Probe Success by Node",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "datasource": { "type": "postgres", "uid": "${DS_TIMESCALEDB}" },
+      "targets": [
+        {
+          "rawSql": "SELECT time_bucket('10 minutes', time) AS time, node_id, COUNT(*) FILTER (WHERE tcp_success) AS success, COUNT(*) AS total FROM probe_results WHERE $__timeFilter(time) GROUP BY 1, node_id ORDER BY 1",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "BGP Events",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "datasource": { "type": "postgres", "uid": "${DS_TIMESCALEDB}" },
+      "targets": [
+        {
+          "rawSql": "SELECT time_bucket('30 minutes', time) AS time, event_type, COUNT(*) AS count FROM bgp_events WHERE $__timeFilter(time) GROUP BY 1, event_type ORDER BY 1",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "fillOpacity": 30 } } }
+    },
+    {
+      "title": "Social Signal Mentions",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "datasource": { "type": "postgres", "uid": "${DS_TIMESCALEDB}" },
+      "targets": [
+        {
+          "rawSql": "SELECT time, mention_count, baseline_rate, ratio FROM social_signals WHERE $__timeFilter(time) ORDER BY time",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Correlation Confidence",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+      "datasource": { "type": "postgres", "uid": "${DS_TIMESCALEDB}" },
+      "targets": [
+        {
+          "rawSql": "SELECT time, target_url, confidence FROM correlation_results WHERE $__timeFilter(time) ORDER BY time",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "min": 0, "max": 1, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.3 }, { "color": "orange", "value": 0.5 }, { "color": "red", "value": 0.8 }] } } }
+    },
+    {
+      "title": "Node Health",
+      "type": "table",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 30 },
+      "datasource": { "type": "postgres", "uid": "${DS_TIMESCALEDB}" },
+      "targets": [
+        {
+          "rawSql": "SELECT DISTINCT ON (node_id) node_id AS \"Node\", CASE WHEN is_alive THEN '🟢 Alive' ELSE '🔴 Down' END AS \"Status\", CASE WHEN baseline_ok THEN '✅ OK' ELSE '⚠️ Unreliable' END AS \"Baseline\", probe_count AS \"Probes\", avg_latency_ms AS \"Avg Latency (ms)\", buffer_depth AS \"Buffer\", version AS \"Version\", time AS \"Last Seen\" FROM node_health ORDER BY node_id, time DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Active Incidents",
+      "type": "table",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 36 },
+      "datasource": { "type": "postgres", "uid": "${DS_TIMESCALEDB}" },
+      "targets": [
+        {
+          "rawSql": "SELECT target_url AS \"Target\", started_at AS \"Started\", resolved_at AS \"Resolved\", ROUND(peak_confidence::numeric * 100, 1) AS \"Peak Confidence %\", peak_status AS \"Peak Status\", array_to_string(signals_fired, ', ') AS \"Signals\" FROM incidents WHERE $__timeFilter(started_at) ORDER BY started_at DESC LIMIT 50",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["sentinel", "monitoring", "azerbaijan"],
+  "templating": {
+    "list": [
+      {
+        "name": "DS_TIMESCALEDB",
+        "type": "datasource",
+        "query": "postgres",
+        "current": { "text": "TimescaleDB", "value": "TimescaleDB" }
+      }
+    ]
+  },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "Sentinel V2 — Azerbaijan Internet Monitor",
+  "uid": "sentinel-main",
+  "version": 1
+}

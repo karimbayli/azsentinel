@@ -1,0 +1,60 @@
+# ============================================================
+# Sentinel V2 — Caddy Reverse Proxy Configuration
+# TLS auto-provisioned via Let's Encrypt
+# Beta: updown.az  →  Production: netwatch.az
+# ============================================================
+
+{$DOMAIN:updown.az} {
+    # API endpoints
+    handle /api/* {
+        reverse_proxy central:8080
+    }
+
+    handle /healthz {
+        reverse_proxy central:8080
+    }
+
+    handle /methodology* {
+        reverse_proxy central:8080
+    }
+
+    # Grafana dashboards
+    handle /grafana/* {
+        reverse_proxy grafana:3000
+    }
+
+    # Static dashboard (frontend)
+    handle {
+        reverse_proxy central:8080
+    }
+
+    # Security headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        X-XSS-Protection "1; mode=block"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
+
+    # Rate limiting for API
+    rate_limit {
+        zone api {
+            match {
+                path /api/*
+            }
+            key {remote_host}
+            events 60
+            window 1m
+        }
+    }
+
+    log {
+        output file /var/log/caddy/access.log {
+            roll_size 50mb
+            roll_keep 5
+        }
+        format json
+    }
+}

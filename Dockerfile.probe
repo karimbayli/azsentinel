@@ -1,0 +1,37 @@
+# ============================================================
+# Sentinel V2 — Probe Agent Dockerfile
+# Multi-stage build: target < 15MB final image
+# ============================================================
+FROM golang:1.24-alpine AS builder
+
+RUN apk add --no-cache gcc musl-dev sqlite-dev
+
+WORKDIR /build
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN CGO_ENABLED=1 GOOS=linux go build \
+    -ldflags="-s -w -X main.version=$(git describe --tags --always 2>/dev/null || echo dev)" \
+    -o /sentinel-probe ./cmd/probe-agent/
+
+# ============================================================
+FROM alpine:3.21
+
+RUN apk add --no-cache ca-certificates sqlite-libs tzdata && \
+    cp /usr/share/zoneinfo/UTC /etc/localtime && \
+    adduser -D -H sentinel
+
+COPY --from=builder /sentinel-probe /usr/local/bin/sentinel-probe
+COPY configs/probe.example.yaml /app/configs/probe.yaml
+
+WORKDIR /app
+
+RUN mkdir -p /var/lib/sentinel && chown sentinel:sentinel /var/lib/sentinel
+
+USER sentinel
+
+ENTRYPOINT ["sentinel-probe"]
+CMD ["--config", "/app/configs/probe.yaml"]

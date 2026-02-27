@@ -1,0 +1,32 @@
+/* Lucide-style inline SVG icons as CSS backgrounds and utility classes */
+/* All icons are 24x24 viewBox, stroke-based, 2px stroke width */
+
+.icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.125em;
+    flex-shrink: 0;
+}
+
+.icon svg {
+    width: 100%;
+    height: 100%;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+}
+
+.icon-sm {
+    width: 0.85em;
+    height: 0.85em;
+}
+
+.icon-lg {
+    width: 1.25em;
+    height: 1.25em;
+}

@@ -1,0 +1,70 @@
+name: Build & Push Docker Images
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'static/**'
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  CENTRAL_IMAGE: ghcr.io/${{ github.repository }}/central
+  PROBE_IMAGE: ghcr.io/${{ github.repository }}/probe
+
+jobs:
+  build-central:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.central
+          push: true
+          tags: |
+            ${{ env.CENTRAL_IMAGE }}:latest
+            ${{ env.CENTRAL_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-probe:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.probe
+          push: true
+          tags: |
+            ${{ env.PROBE_IMAGE }}:latest
+            ${{ env.PROBE_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -1,0 +1,39 @@
+# ============================================================
+# Sentinel V2 — Probe Agent Docker Compose
+# Deploy on each vantage node (AZ VPS, Oracle Cloud, etc.)
+# ============================================================
+# Usage:
+#   NODE_ID=node-az REGION=az-baku COUNTRY=AZ \
+#   CENTRAL_URL=https://updown.az HMAC_SECRET=<secret> \
+#   docker compose -f docker-compose.probe.yml up -d
+
+services:
+  probe:
+    build:
+      context: ..
+      dockerfile: Dockerfile.probe
+    # Or use pre-built image:
+    # image: ghcr.io/<owner>/sentinel-probe:latest
+    container_name: sentinel-probe-${NODE_ID:-node}
+    restart: unless-stopped
+    environment:
+      SENTINEL_NODE_ID: ${NODE_ID:-node-eu}
+      SENTINEL_REGION: ${REGION:-eu-frankfurt}
+      SENTINEL_COUNTRY: ${COUNTRY:-DE}
+      SENTINEL_CENTRAL_URL: ${CENTRAL_URL:-https://updown.az}
+      SENTINEL_HMAC_SECRET: ${HMAC_SECRET:-change-me-in-production}
+    volumes:
+      - probe_buffer:/var/lib/sentinel
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  probe_buffer:

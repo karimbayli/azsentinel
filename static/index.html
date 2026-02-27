@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UpDown.az — Azerbaijan Internet Monitor</title>
+    <meta name="description"
+        content="Real-time, multi-signal monitoring of Azerbaijan's internet infrastructure from global vantage points.">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="icons.css">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛰</text></svg>">
+</head>
+
+<body>
+    <div class="page">
+
+        <!-- Hero -->
+        <header class="hero fade-in" role="banner">
+            <div class="hero-top">
+                <div class="hero-brand">
+                    <h1>UPDOWN<span style="color:var(--text-dim);font-weight:400">.AZ</span></h1>
+                    <p data-i18n="hero_subtitle">Azerbaijan Internet Infrastructure Monitor — Multi-node external
+                        reachability</p>
+                </div>
+                <div style="display:flex;align-items:center;gap:1rem">
+                    <button class="lang-btn" id="langToggle" onclick="toggleLang()"
+                        aria-label="Switch language">AZ</button>
+                    <div class="hero-live" aria-live="polite">
+                        <div class="live-dot" role="status" aria-label="System online"></div>
+                        <span>LIVE · <span id="lastUpdate">...</span></span>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-stats" role="group" aria-label="Status summary">
+                <div class="stat-card">
+                    <div class="stat-val" id="statTargets">—</div>
+                    <div class="stat-label" data-i18n="stat_monitored">Monitored</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-val" id="statHealthy">—</div>
+                    <div class="stat-label" data-i18n="stat_healthy">Healthy</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-val" id="statDegraded">—</div>
+                    <div class="stat-label" data-i18n="stat_degraded">Degraded</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-val" id="statOutages">—</div>
+                    <div class="stat-label" data-i18n="stat_outages">Outages</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Dot-Matrix World Map -->
+        <section class="map-section fade-in fade-in-1" aria-label="Vantage point network">
+            <h2 data-i18n="section_map">Global Vantage Points</h2>
+            <div class="map-container" id="dotMap"></div>
+        </section>
+
+        <!-- Nodes Health -->
+        <section class="fade-in fade-in-2" aria-label="Node health">
+            <div class="section-header" id="shNodes"><span data-i18n="section_nodes">Node Health</span></div>
+            <div class="nodes-grid" id="nodesGrid" role="list">
+                <div class="empty" data-i18n="empty_nodes">Waiting for node data…</div>
+            </div>
+        </section>
+
+        <!-- Target Cards (grouped by category/industry) -->
+        <section class="targets-wrap fade-in fade-in-2" id="targetsContainer" aria-label="Monitored targets">
+            <div class="empty" data-i18n="empty_targets">Loading targets…</div>
+        </section>
+
+        <!-- Incidents + BGP side-by-side -->
+        <div class="two-col fade-in fade-in-3">
+            <section class="panel" aria-label="Recent incidents">
+                <div class="section-header" id="shIncidents"><span data-i18n="section_incidents">Recent Incidents</span>
+                </div>
+                <div id="incidentsFeed" role="list">
+                    <div class="empty" data-i18n="empty_incidents">Loading…</div>
+                </div>
+            </section>
+            <section class="panel" aria-label="BGP events">
+                <div class="section-header" id="shBGP"><span data-i18n="section_bgp">BGP Events</span></div>
+                <div id="bgpFeed" role="list">
+                    <div class="empty" data-i18n="empty_bgp">Loading…</div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Methodology -->
+        <section class="methodology fade-in fade-in-4" aria-label="Confidence model methodology">
+            <div class="section-header" id="shConf"><span data-i18n="section_confidence">Confidence Model</span></div>
+            <p style="font-size:0.82rem;color:var(--text-dim);margin-bottom:0.75rem" data-i18n="confidence_desc">
+                Status is determined by combining three independent signals. Each signal's weight reflects its
+                reliability and independence.
+            </p>
+            <div class="meth-weights" id="methWeights" role="group" aria-label="Signal weights">
+                <div class="meth-w">
+                    <div class="meth-w-val" style="color:var(--cyan)">50%</div>
+                    <div class="meth-w-label">Node Signal</div>
+                </div>
+                <div class="meth-w">
+                    <div class="meth-w-val" style="color:var(--amber)">30%</div>
+                    <div class="meth-w-label">BGP Signal</div>
+                </div>
+                <div class="meth-w">
+                    <div class="meth-w-val" style="color:var(--orange)">20%</div>
+                    <div class="meth-w-label">Social Signal</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p><span data-i18n="footer_note">Sentinel V2 monitors <strong>external reachability only</strong>.</span> <a
+                    href="/methodology" data-i18n="footer_methodology">Read full methodology</a> · <a
+                    href="/api/v1/export/csv" data-i18n="footer_export">Export CSV</a></p>
+            <p style="margin-top:0.4rem" data-i18n="footer_refresh">Data refreshes every 30 seconds. All times UTC.</p>
+        </footer>
+    </div>
+
+    <!-- Drill-Down Overlay -->
+    <div class="overlay" id="drillOverlay" onclick="if(event.target===this)closeDrill()" role="dialog" aria-modal="true"
+        aria-label="Target details">
+        <div class="overlay-panel" id="drillContent"></div>
+    </div>
+
+    <script src="icons.js"></script>
+    <script src="i18n.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
