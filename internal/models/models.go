@@ -97,11 +97,12 @@ type NodeHealth struct {
 
 // Target is a monitored endpoint.
 type Target struct {
-	URL         string `json:"url" yaml:"url"`
-	Category    string `json:"category" yaml:"category"`
-	Criticality int    `json:"criticality" yaml:"criticality"`
-	Enabled     bool   `json:"enabled" yaml:"enabled"`
-	DisplayName string `json:"display_name" yaml:"display_name"`
+	URL           string `json:"url" yaml:"url"`
+	Category      string `json:"category" yaml:"category"`
+	Criticality   int    `json:"criticality" yaml:"criticality"`
+	Enabled       bool   `json:"enabled" yaml:"enabled"`
+	DisplayName   string `json:"display_name" yaml:"display_name"`
+	DisplayNameEN string `json:"display_name_en" yaml:"display_name_en"`
 }
 
 // Node represents a vantage point.
