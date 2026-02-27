@@ -144,8 +144,8 @@ func main() {
 		zap.Int("interval_sec", cfg.Correlation.IntervalSeconds),
 		zap.Int("window_min", cfg.Correlation.WindowMinutes))
 
-	// Start Local Probe Agent (node-az)
-	localNodeID := "node-az"
+	// Start Local Probe Agent (node-eu-central)
+	localNodeID := "node-eu-central"
 	for _, n := range cfg.Nodes {
 		if n.Country == "AZ" {
 			localNodeID = n.NodeID
@@ -155,7 +155,7 @@ func main() {
 
 	prober := probe.New(
 		localNodeID,
-		"az-baku",
+		"eu-frankfurt",
 		cfg.Targets,
 		cfg.Probe.TCPTimeout,
 		cfg.Probe.HTTPTimeout,
@@ -204,8 +204,8 @@ func main() {
 	logger.Info("sentinel v2 central server stopped")
 }
 
-// runLocalProber runs the local Azerbaijan probe node.
-// FIX M-7: Also reports node health so node-az appears in /api/v1/nodes.
+// runLocalProber runs the local Europe fallback probe node.
+// Also reports node health so node-eu-central appears in /api/v1/nodes.
 func runLocalProber(ctx context.Context, prober *probe.Prober, db *storage.DB, intervalSec int, nodeID string, logger *zap.Logger) {
 	ticker := time.NewTicker(time.Duration(intervalSec) * time.Second)
 	defer ticker.Stop()
