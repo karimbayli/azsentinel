@@ -1,5 +1,5 @@
 # ============================================================
-# Sentinel V2 — Central Stack (TimescaleDB + App + Grafana + Caddy)
+# Sentinel V2 — Central Stack (TimescaleDB + App + Grafana)
 # Deploy on: Hetzner via Coolify
 # ============================================================
 
@@ -14,7 +14,6 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-sentinel_secret}
     volumes:
       - timescaledb_data:/var/lib/postgresql/data
-      - ../migrations:/docker-entrypoint-initdb.d
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-sentinel}" ]
       interval: 10s
@@ -28,9 +27,7 @@ services:
       - sentinel
 
   central:
-    build:
-      context: ..
-      dockerfile: Dockerfile.central
+    image: ghcr.io/karimbayli/azsentinel/central:latest
     container_name: sentinel-central
     restart: unless-stopped
     depends_on:
@@ -48,9 +45,6 @@ services:
       SENTINEL_TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-0}
     ports:
       - "8080:8080"
-    volumes:
-      - ../configs/central.yaml:/app/configs/central.yaml:ro
-      - ../static:/app/static:ro
     healthcheck:
       test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8080/healthz" ]
       interval: 30s
@@ -78,7 +72,6 @@ services:
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
     deploy:
       resources:
         limits:
