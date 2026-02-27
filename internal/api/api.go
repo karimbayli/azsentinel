@@ -415,22 +415,53 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var statuses []models.TargetStatus
+	// Batch-fetch all correlations and open incidents in parallel (3 queries total, not 158)
+	type corrResult struct {
+		data map[string]*models.CorrelationResult
+		err  error
+	}
+	type incResult struct {
+		data map[string]*models.Incident
+		err  error
+	}
+
+	corrCh := make(chan corrResult, 1)
+	incCh := make(chan incResult, 1)
+
+	go func() {
+		data, err := s.db.GetAllLatestCorrelations(r.Context())
+		corrCh <- corrResult{data, err}
+	}()
+	go func() {
+		data, err := s.db.GetAllOpenIncidents(r.Context())
+		incCh <- incResult{data, err}
+	}()
+
+	cr := <-corrCh
+	ir := <-incCh
+
+	correlations := cr.data
+	if cr.err != nil {
+		s.logger.Warn("failed to batch-fetch correlations", zap.Error(cr.err))
+		correlations = make(map[string]*models.CorrelationResult)
+	}
+	incidents := ir.data
+	if ir.err != nil {
+		s.logger.Warn("failed to batch-fetch incidents", zap.Error(ir.err))
+		incidents = make(map[string]*models.Incident)
+	}
+
+	statuses := make([]models.TargetStatus, 0, len(targets))
 	for _, t := range targets {
 		ts := models.TargetStatus{Target: t, Status: "HEALTHY"}
-		cr, err := s.db.GetLatestCorrelation(r.Context(), t.URL)
-		if err == nil && cr != nil {
-			ts.Status = cr.Status
-			ts.Confidence = cr.Confidence
-			ts.LastCheck = cr.Time
+		if c, ok := correlations[t.URL]; ok {
+			ts.Status = c.Status
+			ts.Confidence = c.Confidence
+			ts.LastCheck = c.Time
 		}
-
-		// Check for active incident
-		inc, err := s.db.GetOpenIncident(r.Context(), t.URL)
-		if err == nil && inc != nil {
+		if inc, ok := incidents[t.URL]; ok {
 			ts.ActiveIncident = inc
 		}
-
 		statuses = append(statuses, ts)
 	}
 

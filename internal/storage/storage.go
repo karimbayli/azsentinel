@@ -329,6 +329,65 @@ func (db *DB) GetLatestCorrelation(ctx context.Context, targetURL string) (*mode
 	return &r, nil
 }
 
+// GetAllLatestCorrelations returns the most recent correlation result for all targets in one query.
+func (db *DB) GetAllLatestCorrelations(ctx context.Context) (map[string]*models.CorrelationResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	rows, err := db.pool.Query(ctx, `
+		SELECT DISTINCT ON (target_url)
+		       time, target_url, status, confidence, node_signal, bgp_signal,
+		       social_signal, signals_active, total_nodes, failing_nodes
+		FROM correlation_results
+		ORDER BY target_url, time DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("query all correlations: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[string]*models.CorrelationResult)
+	for rows.Next() {
+		var r models.CorrelationResult
+		if err := rows.Scan(&r.Time, &r.TargetURL, &r.Status, &r.Confidence,
+			&r.NodeSignal, &r.BGPSignal, &r.SocialSignal,
+			&r.SignalsActive, &r.TotalNodes, &r.FailingNodes); err != nil {
+			return nil, fmt.Errorf("scan correlation: %w", err)
+		}
+		result[r.TargetURL] = &r
+	}
+	return result, rows.Err()
+}
+
+// GetAllOpenIncidents returns all currently open incidents in one query.
+func (db *DB) GetAllOpenIncidents(ctx context.Context) (map[string]*models.Incident, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	rows, err := db.pool.Query(ctx, `
+		SELECT id, target_url, started_at, resolved_at, peak_confidence, peak_status, signals_fired, notes
+		FROM incidents
+		WHERE resolved_at IS NULL
+		ORDER BY started_at DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("query all open incidents: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[string]*models.Incident)
+	for rows.Next() {
+		var inc models.Incident
+		if err := rows.Scan(&inc.ID, &inc.TargetURL, &inc.StartedAt, &inc.ResolvedAt,
+			&inc.PeakConfidence, &inc.PeakStatus, &inc.SignalsFired, &inc.Notes); err != nil {
+			return nil, fmt.Errorf("scan incident: %w", err)
+		}
+		// Only keep first (most recent) per target
+		if _, exists := result[inc.TargetURL]; !exists {
+			result[inc.TargetURL] = &inc
+		}
+	}
+	return result, rows.Err()
+}
+
 // ============================================================
 // Social Signals
 // ============================================================

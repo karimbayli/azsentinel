@@ -273,20 +273,24 @@ func (m *Monitor) connect(ctx context.Context, collector string) error {
 	}
 	defer conn.Close()
 
+	// Build subscription data — only include path filter if ASNs are configured
+	subData := map[string]interface{}{
+		"type": "UPDATE",
+		"host": collector,
+		"socketOptions": map[string]bool{
+			"includeRaw": false,
+		},
+	}
+
 	// FIX R-12: Server-side ASN filter to reduce bandwidth.
-	// Build a regex-style path filter for watched ASNs.
 	asnFilter := m.buildASNFilter()
+	if asnFilter != "" {
+		subData["path"] = asnFilter
+	}
 
 	subscribe := map[string]interface{}{
 		"type": "ris_subscribe",
-		"data": map[string]interface{}{
-			"type": "UPDATE",
-			"host": collector,
-			"path": asnFilter, // Server-side filter: only events with these ASNs in path
-			"socketOptions": map[string]bool{
-				"includeRaw": false,
-			},
-		},
+		"data": subData,
 	}
 	if err := conn.WriteJSON(subscribe); err != nil {
 		return fmt.Errorf("subscribe: %w", err)
@@ -295,6 +299,26 @@ func (m *Monitor) connect(ctx context.Context, collector string) error {
 	m.logger.Info("subscribed to RIPE RIS Live",
 		zap.String("collector", collector),
 		zap.String("asn_filter", asnFilter))
+
+	// Keepalive: send periodic pings to prevent idle disconnect
+	pingDone := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					return
+				}
+			case <-pingDone:
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	defer close(pingDone)
 
 	for {
 		select {
