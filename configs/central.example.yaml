@@ -57,9 +57,9 @@ log_level: "info"
 # Vantage Nodes — Register all probe nodes here
 # ============================================================
 nodes:
-  - node_id: "node-az"
-    region: "az-baku"
-    country: "AZ"
+  - node_id: "node-eu-central"
+    region: "eu-frankfurt"
+    country: "DE"
     enabled: true
   - node_id: "node-eu"
     region: "eu-frankfurt"
