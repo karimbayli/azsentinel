@@ -263,7 +263,7 @@ func (e *Engine) assessTarget(ctx context.Context, target models.Target, prevSta
 	status := determineStatus(confidence, prevStatus)
 
 	// Build signals list
-	var signals []string
+	signals := []string{}
 	if nodeSignal > 0 {
 		signals = append(signals, "MULTI_NODE_FAILURE")
 	}
