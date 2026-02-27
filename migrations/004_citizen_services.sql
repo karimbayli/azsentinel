@@ -5,9 +5,11 @@
 -- 3. Seeds citizen digital services used by diaspora abroad
 -- 4. Backfills English names for all existing targets
 -- ============================================================
--- Step 1: Add English display name column
+-- Step 1: Add English display name + parent system columns
 ALTER TABLE targets
 ADD COLUMN IF NOT EXISTS display_name_en TEXT NOT NULL DEFAULT '';
+ALTER TABLE targets
+ADD COLUMN IF NOT EXISTS parent_system TEXT NOT NULL DEFAULT '';
 -- Step 2: Add GOV_SERVICE category
 ALTER TABLE targets DROP CONSTRAINT IF EXISTS targets_category_check;
 ALTER TABLE targets
@@ -292,6 +294,30 @@ VALUES -- ── myGov Ecosystem APIs ──────────────
         true,
         'M10 Payments Backend',
         'M10 Payments Backend'
+    ),
+    (
+        'https://api.m10.az',
+        'FINTECH',
+        9,
+        true,
+        'M10 Mobil API',
+        'M10 Mobile API'
+    ),
+    (
+        'https://pashapay.az',
+        'FINTECH',
+        9,
+        true,
+        'PashaPay',
+        'PashaPay'
+    ),
+    (
+        'https://leobank.az',
+        'BANK',
+        8,
+        true,
+        'LeoBank',
+        'LeoBank'
     ),
     -- ── Telecom Mobile APIs ──────────────────────────────────
     (
@@ -754,3 +780,215 @@ WHERE url = 'https://cloudflare.com';
 UPDATE targets
 SET display_name_en = 'Google DNS'
 WHERE url = 'https://8.8.8.8';
+-- ============================================================
+-- Step 5: Assign parent_system for enterprise service grouping
+-- Groups related URLs (website + APIs) under one logical system
+-- ============================================================
+-- ── myGov System ─────────────────────────────────────────────
+UPDATE targets
+SET parent_system = 'mygov'
+WHERE url IN (
+        'https://my.gov.az',
+        'https://mygovid.gov.az',
+        'https://mygov-api.e-gov.az',
+        'https://mygov-apigw.e-gov.az',
+        'https://mygov-cdn.e-gov.az',
+        'https://api.mygovid.gov.az',
+        'https://digital.login.gov.az',
+        'https://apidigital.login.gov.az'
+    );
+-- ── E-Government System ──────────────────────────────────────
+UPDATE targets
+SET parent_system = 'egov'
+WHERE url IN (
+        'https://e-gov.az',
+        'https://e-taxes.gov.az'
+    );
+-- ── ASAN System ──────────────────────────────────────────────
+UPDATE targets
+SET parent_system = 'asan'
+WHERE url IN (
+        'https://asan.gov.az',
+        'https://asanpay.az',
+        'https://asanviza.gov.az',
+        'https://asanfinans.az'
+    );
+-- ── SIMA System ──────────────────────────────────────────────
+UPDATE targets
+SET parent_system = 'sima'
+WHERE url IN ('https://sima.az');
+-- ── E-Sosial System ──────────────────────────────────────────
+UPDATE targets
+SET parent_system = 'esosial'
+WHERE url IN (
+        'https://sosial.gov.az',
+        'https://mapi.sosial.gov.az'
+    );
+-- ── ABB Bank System ──────────────────────────────────────────
+UPDATE targets
+SET parent_system = 'abb'
+WHERE url IN (
+        'https://abb-bank.az',
+        'https://mbanking.abb-bank.az',
+        'https://asm-prod.abb-bank.az'
+    );
+-- ── Kapital Bank / BirBank System ────────────────────────────
+UPDATE targets
+SET parent_system = 'kapitalbank'
+WHERE url IN (
+        'https://kapitalbank.az',
+        'https://birbank.az'
+    );
+-- ── M10 / PashaPay System ────────────────────────────────────
+UPDATE targets
+SET parent_system = 'm10'
+WHERE url IN (
+        'https://m10.az',
+        'https://api.m10.az',
+        'https://evamx.pashapay.az',
+        'https://pashapay.az',
+        'https://analytics.m10payments.com'
+    );
+-- ── PASHA Bank System ────────────────────────────────────────
+UPDATE targets
+SET parent_system = 'pashabank'
+WHERE url IN ('https://pashabank.az');
+-- ── LeoBank System ───────────────────────────────────────────
+UPDATE targets
+SET parent_system = 'leobank'
+WHERE url IN (
+        'https://leobank.az',
+        'https://octopus.leobank.az'
+    );
+-- ── Unibank System ───────────────────────────────────────────
+UPDATE targets
+SET parent_system = 'unibank'
+WHERE url IN (
+        'https://unibank.az',
+        'https://online.unibank.az'
+    );
+-- ── Yelo Bank System ─────────────────────────────────────────
+UPDATE targets
+SET parent_system = 'yelo'
+WHERE url IN (
+        'https://yelo.az',
+        'https://ibank-preprod.yelo.az'
+    );
+-- ── Azercell System ──────────────────────────────────────────
+UPDATE targets
+SET parent_system = 'azercell'
+WHERE url IN (
+        'https://azercell.com',
+        'https://kabinetim-app.azercell.com'
+    );
+-- ── Nar Mobile System ────────────────────────────────────────
+UPDATE targets
+SET parent_system = 'nar'
+WHERE url IN ('https://nar.az');
+-- ── Bakcell System ───────────────────────────────────────────
+UPDATE targets
+SET parent_system = 'bakcell'
+WHERE url IN ('https://bakcell.az');
+-- ── Delta Telecom System ─────────────────────────────────────
+UPDATE targets
+SET parent_system = 'delta'
+WHERE url IN ('https://delta.az');
+-- ── Aztelekom System ─────────────────────────────────────────
+UPDATE targets
+SET parent_system = 'aztelekom'
+WHERE url IN ('https://aztelekom.az');
+-- ── Umico System ─────────────────────────────────────────────
+UPDATE targets
+SET parent_system = 'umico'
+WHERE url IN (
+        'https://umico.az',
+        'https://gateway.umico.az'
+    );
+-- ── Tap.az System ────────────────────────────────────────────
+UPDATE targets
+SET parent_system = 'tap'
+WHERE url IN ('https://tap.az', 'https://api.tap.az');
+-- ── Turbo.az System ──────────────────────────────────────────
+UPDATE targets
+SET parent_system = 'turbo'
+WHERE url IN ('https://turbo.az', 'https://api.turbo.az');
+-- ── Bina.az System ───────────────────────────────────────────
+UPDATE targets
+SET parent_system = 'bina'
+WHERE url IN ('https://bina.az', 'https://api.bina.az');
+-- ── Utility Systems ──────────────────────────────────────────
+UPDATE targets
+SET parent_system = 'azersu'
+WHERE url = 'https://azersu.az';
+UPDATE targets
+SET parent_system = 'azerishiq'
+WHERE url = 'https://azerishiq.az';
+UPDATE targets
+SET parent_system = 'azeriqaz'
+WHERE url = 'https://azeriqaz.az';
+-- ── Transport Systems ────────────────────────────────────────
+UPDATE targets
+SET parent_system = 'azal'
+WHERE url = 'https://azal.az';
+UPDATE targets
+SET parent_system = 'ady'
+WHERE url = 'https://ady.az';
+UPDATE targets
+SET parent_system = 'bakubus'
+WHERE url IN (
+        'https://bakubus.az',
+        'https://app.bakubus.az'
+    );
+UPDATE targets
+SET parent_system = 'bakumetro'
+WHERE url = 'https://bakumetro.gov.az';
+-- ── City & Other Services ────────────────────────────────────
+UPDATE targets
+SET parent_system = 'azparking'
+WHERE url = 'https://appapi.azparking.az';
+UPDATE targets
+SET parent_system = 'smsradar'
+WHERE url = 'https://web.smsradar.az';
+UPDATE targets
+SET parent_system = 'iticket'
+WHERE url IN (
+        'https://iticket.az',
+        'https://api.iticket.az'
+    );
+UPDATE targets
+SET parent_system = 'epoint'
+WHERE url = 'https://epoint.az';
+UPDATE targets
+SET parent_system = 'socar'
+WHERE url = 'https://socar.az';
+UPDATE targets
+SET parent_system = 'lalafo'
+WHERE url = 'https://lalafo.az';
+-- ── Remaining Banks (standalone) ─────────────────────────────
+UPDATE targets
+SET parent_system = 'rabitabank'
+WHERE url = 'https://rabitabank.az';
+UPDATE targets
+SET parent_system = 'expressbank'
+WHERE url = 'https://expressbank.az';
+UPDATE targets
+SET parent_system = 'nikoil'
+WHERE url = 'https://nikoil.az';
+UPDATE targets
+SET parent_system = 'accessbank'
+WHERE url = 'https://accessbank.az';
+UPDATE targets
+SET parent_system = 'bankrespublika'
+WHERE url = 'https://bankrespublika.az';
+UPDATE targets
+SET parent_system = 'xalqbank'
+WHERE url = 'https://xalqbank.az';
+UPDATE targets
+SET parent_system = 'ibar'
+WHERE url = 'https://ibar.az';
+UPDATE targets
+SET parent_system = 'azerturkbank'
+WHERE url = 'https://azerturkbank.az';
+UPDATE targets
+SET parent_system = 'cbar'
+WHERE url = 'https://cbar.az';

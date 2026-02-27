@@ -507,15 +507,16 @@ func (db *DB) SyncTargets(ctx context.Context, targets []models.Target) error {
 	batch := &pgx.Batch{}
 	for _, t := range targets {
 		batch.Queue(`
-			INSERT INTO targets (url, category, criticality, enabled, display_name, display_name_en)
-			VALUES ($1,$2,$3,$4,$5,$6)
+			INSERT INTO targets (url, category, criticality, enabled, display_name, display_name_en, parent_system)
+			VALUES ($1,$2,$3,$4,$5,$6,$7)
 			ON CONFLICT (url) DO UPDATE SET
 				category = EXCLUDED.category,
 				criticality = EXCLUDED.criticality,
 				enabled = EXCLUDED.enabled,
 				display_name = EXCLUDED.display_name,
-				display_name_en = EXCLUDED.display_name_en`,
-			t.URL, t.Category, t.Criticality, t.Enabled, t.DisplayName, t.DisplayNameEN)
+				display_name_en = EXCLUDED.display_name_en,
+				parent_system = EXCLUDED.parent_system`,
+			t.URL, t.Category, t.Criticality, t.Enabled, t.DisplayName, t.DisplayNameEN, t.ParentSystem)
 	}
 
 	br := db.pool.SendBatch(ctx, batch)
@@ -563,7 +564,8 @@ func (db *DB) GetEnabledTargets(ctx context.Context) ([]models.Target, error) {
 	defer cancel()
 
 	rows, err := db.pool.Query(ctx, `
-		SELECT url, category, criticality, enabled, display_name, COALESCE(display_name_en, display_name)
+		SELECT url, category, criticality, enabled, display_name,
+		       COALESCE(display_name_en, display_name), COALESCE(parent_system, '')
 		FROM targets WHERE enabled = true ORDER BY criticality DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("query targets: %w", err)
@@ -573,7 +575,7 @@ func (db *DB) GetEnabledTargets(ctx context.Context) ([]models.Target, error) {
 	var targets []models.Target
 	for rows.Next() {
 		var t models.Target
-		if err := rows.Scan(&t.URL, &t.Category, &t.Criticality, &t.Enabled, &t.DisplayName, &t.DisplayNameEN); err != nil {
+		if err := rows.Scan(&t.URL, &t.Category, &t.Criticality, &t.Enabled, &t.DisplayName, &t.DisplayNameEN, &t.ParentSystem); err != nil {
 			return nil, fmt.Errorf("scan target: %w", err)
 		}
 		targets = append(targets, t)

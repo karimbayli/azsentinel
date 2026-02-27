@@ -103,6 +103,7 @@ type Target struct {
 	Enabled       bool   `json:"enabled" yaml:"enabled"`
 	DisplayName   string `json:"display_name" yaml:"display_name"`
 	DisplayNameEN string `json:"display_name_en" yaml:"display_name_en"`
+	ParentSystem  string `json:"parent_system" yaml:"parent_system"`
 }
 
 // Node represents a vantage point.
