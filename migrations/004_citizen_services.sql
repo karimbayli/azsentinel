@@ -393,6 +393,33 @@ VALUES -- ── myGov Ecosystem APIs ──────────────
         true,
         'iTicket Mobil API',
         'iTicket Mobile API'
+    ),
+    -- ── SIMA Biometric API (discovered via SIMA app) ─────────
+    (
+        'https://biosign-gateway-api.sima.az',
+        'GOV_SERVICE',
+        9,
+        true,
+        'SIMA Biometrik İmza API',
+        'SIMA Biometric Signature API'
+    ),
+    -- ── PashaBank Mobile API (discovered via PashaBank app) ──
+    (
+        'https://mobile.pashabank.digital',
+        'BANK',
+        9,
+        true,
+        'PashaBank Mobil API',
+        'PashaBank Mobile API'
+    ),
+    -- ── myGov ASAN Login (discovered via myGov app) ──────────
+    (
+        'https://asanlogin.my.gov.az',
+        'GOV_SERVICE',
+        10,
+        true,
+        'ASAN Login (myGov)',
+        'ASAN Login (myGov)'
     ) ON CONFLICT (url) DO
 UPDATE
 SET category = EXCLUDED.category,
@@ -795,7 +822,8 @@ WHERE url IN (
         'https://mygov-cdn.e-gov.az',
         'https://api.mygovid.gov.az',
         'https://digital.login.gov.az',
-        'https://apidigital.login.gov.az'
+        'https://apidigital.login.gov.az',
+        'https://asanlogin.my.gov.az'
     );
 -- ── E-Government System ──────────────────────────────────────
 UPDATE targets
@@ -816,7 +844,10 @@ WHERE url IN (
 -- ── SIMA System ──────────────────────────────────────────────
 UPDATE targets
 SET parent_system = 'sima'
-WHERE url IN ('https://sima.az');
+WHERE url IN (
+        'https://sima.az',
+        'https://biosign-gateway-api.sima.az'
+    );
 -- ── E-Sosial System ──────────────────────────────────────────
 UPDATE targets
 SET parent_system = 'esosial'
@@ -852,7 +883,10 @@ WHERE url IN (
 -- ── PASHA Bank System ────────────────────────────────────────
 UPDATE targets
 SET parent_system = 'pashabank'
-WHERE url IN ('https://pashabank.az');
+WHERE url IN (
+        'https://pashabank.az',
+        'https://mobile.pashabank.digital'
+    );
 -- ── LeoBank System ───────────────────────────────────────────
 UPDATE targets
 SET parent_system = 'leobank'
