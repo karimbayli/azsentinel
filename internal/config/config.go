@@ -3,11 +3,24 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/karimbayli/sentinel-v2/internal/models"
 	"gopkg.in/yaml.v3"
 )
+
+// expandEnv extends os.ExpandEnv to support bash-style default values like ${VAR:-default}.
+func expandEnv(s string) string {
+	return os.Expand(s, func(v string) string {
+		parts := strings.SplitN(v, ":-", 2)
+		val := os.Getenv(parts[0])
+		if val == "" && len(parts) == 2 {
+			return parts[1]
+		}
+		return val
+	})
+}
 
 // CentralConfig is the full configuration for the central server.
 type CentralConfig struct {
@@ -117,8 +130,8 @@ func LoadCentralConfig(path string) (*CentralConfig, error) {
 		return nil, fmt.Errorf("read config %s: %w", path, err)
 	}
 
-	// Expand environment variables
-	expanded := os.ExpandEnv(string(data))
+	// Expand environment variables (with bash-style fallback support)
+	expanded := expandEnv(string(data))
 
 	cfg := &CentralConfig{
 		Server: ServerConfig{
@@ -176,7 +189,7 @@ func LoadProbeAgentConfig(path string) (*ProbeAgentConfig, error) {
 		return nil, fmt.Errorf("read config %s: %w", path, err)
 	}
 
-	expanded := os.ExpandEnv(string(data))
+	expanded := expandEnv(string(data))
 
 	cfg := &ProbeAgentConfig{
 		ProbeInterval: 60 * time.Second,
