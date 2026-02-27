@@ -44,7 +44,7 @@ services:
       SENTINEL_TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       SENTINEL_TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-0}
     ports:
-      - "8080:8080"
+      - "8088:8080"
     healthcheck:
       test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8080/healthz" ]
       interval: 30s
