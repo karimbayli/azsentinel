@@ -1,10 +1,11 @@
 /* ============================================================
    SENTINEL V2 — Dashboard Application Logic
+   "Anti-Gravity" Design Language
    Uses i18n.js for translations, icons.js for SVG icons
    ============================================================ */
 const API = '/api/v1';
-const CATS_ORDER = { GOV: 1, BANK: 2, FINTECH: 3, ISP: 4, MEDIA: 5, OTHER: 6, GLOBAL: 7, ANCHOR: 99 };
-const CAT_ICON = { GOV: 'landmark', BANK: 'building', FINTECH: 'activity', ISP: 'globe', MEDIA: 'newspaper', OTHER: 'target', GLOBAL: 'globe', ANCHOR: 'anchor' };
+const CATS_ORDER = { GOV: 1, GOV_SERVICE: 2, BANK: 3, FINTECH: 4, ISP: 5, MEDIA: 6, OTHER: 7, GLOBAL: 8, ANCHOR: 99 };
+const CAT_ICON = { GOV: 'landmark', GOV_SERVICE: 'landmark', BANK: 'building', FINTECH: 'activity', ISP: 'globe', MEDIA: 'newspaper', OTHER: 'target', GLOBAL: 'globe', ANCHOR: 'anchor' };
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
@@ -57,7 +58,6 @@ function getAZGlobalLine(s) {
         globalText = ` · <span style="color:var(--red)">${t('global_issues')} ${extOkCount}/${extTotal}</span>`;
     }
 
-    // Smart labels
     if (azOk === false && extOkCount === extTotal && extTotal > 0) {
         alert = ` · <span style="color:var(--red);font-weight:600">${t('local_block')}</span>`;
     } else if (azOk === true && extOkCount < extTotal && extTotal > 0) {
@@ -66,6 +66,7 @@ function getAZGlobalLine(s) {
 
     return azText + globalText + alert;
 }
+
 async function fetchJSON(url) {
     try { const r = await fetch(url); return r.ok ? r.json() : null; } catch { return null; }
 }
@@ -87,36 +88,105 @@ function renderHero(statuses) {
     $('#lastUpdate').textContent = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'UTC' }) + ' UTC';
 }
 
-// ── Render: Targets (grouped by industry/category) ──
+// ── System Group Helper ──
+function getSystemStatus(items) {
+    if (items.some(s => s.status === 'MAJOR_OUTAGE')) return 'MAJOR_OUTAGE';
+    if (items.some(s => s.status === 'PARTIAL_OUTAGE')) return 'PARTIAL_OUTAGE';
+    if (items.some(s => s.status === 'DEGRADED')) return 'DEGRADED';
+    return 'HEALTHY';
+}
+
+function renderTargetCard(s) {
+    const cls = statusCls(s.status);
+    const conf = (s.confidence * 100).toFixed(1);
+    const tm = s.last_check ? ago(s.last_check) : '—';
+    const azGlobal = getAZGlobalLine(s);
+    const name = s.target.display_name || s.target.url;
+    return `<div class="tcard s-${cls}" tabindex="0" role="button" aria-label="${esc(name)} — ${statusLabel(s.status)}" onclick="openDrill('${esc(s.target.url)}')" onkeydown="if(event.key==='Enter')openDrill('${esc(s.target.url)}')">
+        <div class="tcard-top"><div><div class="tcard-name">${esc(name)}</div>
+        <div class="tcard-url">${esc(s.target.url)}</div></div>
+        <span class="tcard-pill ${pillCls(s.status)}"><span class="status-indicator si-${cls}">${statusLabel(s.status)}</span></span></div>
+        <div class="tcard-bar" role="progressbar" aria-valuenow="${conf}" aria-valuemin="0" aria-valuemax="100"><div class="tcard-bar-fill" style="width:${conf}%;background:${barColor(s.status)}"></div></div>
+        <div class="tcard-meta"><span>${azGlobal}</span><span>${t('confidence_label')} ${conf}%</span><span>${tm}</span></div>
+    </div>`;
+}
+
+// ── Render: Targets (grouped by system → category) ──
 function renderTargets(statuses) {
     const el = $('#targetsContainer');
     if (!statuses || statuses.length === 0) { el.innerHTML = `<div class="empty">${t('empty_no_targets')}</div>`; return; }
-    const groups = {};
-    statuses.forEach(s => { (groups[s.target.category] = groups[s.target.category] || []).push(s); });
-    const sorted = Object.entries(groups).sort((a, b) => (CATS_ORDER[a[0]] || 99) - (CATS_ORDER[b[0]] || 99));
+
+    // Separate into system-grouped and standalone
+    const systems = {}; // parent_system → array of statuses
+    const standalone = {}; // category → array of statuses (no parent_system)
+
+    statuses.forEach(s => {
+        if (s.target.category === 'ANCHOR') return;
+        const sys = s.target.parent_system;
+        if (sys) {
+            (systems[sys] = systems[sys] || []).push(s);
+        } else {
+            (standalone[s.target.category] = standalone[s.target.category] || []).push(s);
+        }
+    });
+
+    // Group categories: system groups first, then standalone
+    const catGroups = {};
+    Object.entries(systems).forEach(([sysName, items]) => {
+        const mainCat = items[0].target.category;
+        (catGroups[mainCat] = catGroups[mainCat] || { systems: [], standalone: [] }).systems.push({ name: sysName, items });
+    });
+    Object.entries(standalone).forEach(([cat, items]) => {
+        (catGroups[cat] = catGroups[cat] || { systems: [], standalone: [] }).standalone.push(...items);
+    });
+
+    const sorted = Object.entries(catGroups).sort((a, b) => (CATS_ORDER[a[0]] || 99) - (CATS_ORDER[b[0]] || 99));
+
     let html = '';
-    sorted.forEach(([cat, items]) => {
-        if (cat === 'ANCHOR') return;
+    sorted.forEach(([cat, group]) => {
         const iconFn = CAT_ICON[cat] ? ICONS[CAT_ICON[cat]] : ICONS.target;
         const label = t('cat_' + cat) || cat;
+        const totalCount = group.systems.reduce((sum, s) => sum + s.items.length, 0) + group.standalone.length;
+
         html += `<div class="category-group" role="region" aria-label="${esc(label)}">
-            <div class="section-header">${iconFn()} ${esc(label)} <span class="count">${items.length}</span></div>
-            <div class="targets-grid">`;
-        items.forEach(s => {
-            const cls = statusCls(s.status);
-            const conf = (s.confidence * 100).toFixed(1);
-            const tm = s.last_check ? ago(s.last_check) : '—';
-            // AZ/Global perspective
-            const azGlobal = getAZGlobalLine(s);
-            html += `<div class="tcard s-${cls}" tabindex="0" role="button" aria-label="${esc(s.target.display_name || s.target.url)} — ${statusLabel(s.status)}" onclick="openDrill('${esc(s.target.url)}')" onkeydown="if(event.key==='Enter')openDrill('${esc(s.target.url)}')">
-                <div class="tcard-top"><div><div class="tcard-name">${esc(s.target.display_name || s.target.url)}</div>
-                <div class="tcard-url">${esc(s.target.url)}</div></div>
-                <span class="tcard-pill ${pillCls(s.status)}"><span class="status-indicator si-${cls}">${statusLabel(s.status)}</span></span></div>
-                <div class="tcard-bar" role="progressbar" aria-valuenow="${conf}" aria-valuemin="0" aria-valuemax="100"><div class="tcard-bar-fill" style="width:${conf}%;background:${barColor(s.status)}"></div></div>
-                <div class="tcard-meta"><span>${azGlobal}</span><span>${t('confidence_label')} ${conf}%</span><span>${tm}</span></div>
-            </div>`;
+            <div class="section-header">${iconFn()} ${esc(label)} <span class="count">${totalCount}</span></div>`;
+
+        // Render system groups (parent_system cards)
+        group.systems.sort((a, b) => {
+            const aMax = Math.max(...a.items.map(i => i.target.criticality || 5));
+            const bMax = Math.max(...b.items.map(i => i.target.criticality || 5));
+            return bMax - aMax;
+        }).forEach(sys => {
+            const sysStatus = getSystemStatus(sys.items);
+            const sysCls = statusCls(sysStatus);
+            const upCount = sys.items.filter(s => s.status === 'HEALTHY').length;
+            const total = sys.items.length;
+            const allUp = upCount === total;
+            const sysDisplayName = sys.items[0]?.target.display_name?.split(' ')[0] || sys.name;
+
+            html += `<div class="system-group">
+                <div class="system-group-header">
+                    <div class="system-group-name">
+                        <div class="sys-dot s-${sysCls}"></div>
+                        ${esc(sysDisplayName)}
+                    </div>
+                    <div class="system-group-meta">
+                        <span class="sys-ratio ${allUp ? 'all-up' : 'some-down'}">${upCount}/${total} ${t('status_healthy')}</span>
+                    </div>
+                </div>
+                <div class="system-children">`;
+            sys.items.forEach(s => { html += renderTargetCard(s); });
+            html += '</div></div>';
         });
-        html += '</div></div>';
+
+        // Render standalone targets
+        if (group.standalone.length > 0) {
+            html += '<div class="targets-grid">';
+            group.standalone.forEach(s => { html += renderTargetCard(s); });
+            html += '</div>';
+        }
+
+        html += '</div>';
     });
     el.innerHTML = html;
 }
@@ -179,15 +249,15 @@ function renderIncidents(incidents) {
 // ── Render: Methodology ──
 function renderMethodology(m) {
     if (!m) return;
-    $('#methWeights').innerHTML = `
+    const el = $('#methWeights');
+    if (!el) return;
+    el.innerHTML = `
         <div class="meth-w"><div class="meth-w-val" style="color:var(--cyan)">${((m.weights?.node || 0.5) * 100).toFixed(0)}%</div><div class="meth-w-label">Node Signal</div></div>
         <div class="meth-w"><div class="meth-w-val" style="color:var(--amber)">${((m.weights?.bgp || 0.3) * 100).toFixed(0)}%</div><div class="meth-w-label">BGP Signal</div></div>
         <div class="meth-w"><div class="meth-w-val" style="color:var(--orange)">${((m.weights?.social || 0.2) * 100).toFixed(0)}%</div><div class="meth-w-label">Social Signal</div></div>`;
 }
 
 // ── Dot-Matrix World Map ──
-// Land mask: 100 columns × 45 rows, Mercator-ish projection
-// Each hex char = 4 bits (columns), rows top-to-bottom
 const LAND_HEX = [
     '0000000000000000000000000000000000000000000000000000',
     '0000000000000030000000000000000000000000000000000000',
@@ -238,12 +308,12 @@ const LAND_HEX = [
 const MAP_COLS = 100, MAP_ROWS = 45;
 const DOT_SPACING = 8;
 
-// Node geo positions (Mercator-ish, mapped to 100×45 grid)
 const NODE_GEO = {
     'node-us': { col: 22, row: 15, label: 'Ashburn' },
     'node-eu': { col: 49, row: 12, label: 'Frankfurt' },
+    'node-eu-central': { col: 49, row: 12, label: 'Frankfurt' },
     'node-az': { col: 59, row: 14, label: 'Baku' },
-    'node-asia': { col: 70, row: 20, label: 'Mumbai' },
+    'node-asia': { col: 70, row: 20, label: 'Singapore' },
 };
 const AZ_POS = { col: 59, row: 14 };
 
@@ -254,7 +324,7 @@ function buildDotMap(nodes) {
     const h = MAP_ROWS * DOT_SPACING;
     let svg = `<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Dot matrix world map showing probe node locations">`;
 
-    // Render land dots
+    // Land dots
     for (let r = 0; r < MAP_ROWS; r++) {
         const hex = LAND_HEX[r] || '';
         for (let c = 0; c < MAP_COLS; c++) {
@@ -262,17 +332,18 @@ function buildDotMap(nodes) {
             const bitIdx = 3 - (c % 4);
             const nibble = parseInt(hex.charAt(charIdx) || '0', 16);
             if ((nibble >> bitIdx) & 1) {
-                svg += `<circle cx="${c * DOT_SPACING + 4}" cy="${r * DOT_SPACING + 4}" r="1.2" fill="rgba(255,255,255,0.08)"/>`;
+                svg += `<circle cx="${c * DOT_SPACING + 4}" cy="${r * DOT_SPACING + 4}" r="1.1" fill="rgba(255,255,255,0.06)"/>`;
             }
         }
     }
 
-    // Azerbaijan highlight
+    // Azerbaijan highlight glow
     const azX = AZ_POS.col * DOT_SPACING + 4;
     const azY = AZ_POS.row * DOT_SPACING + 4;
-    svg += `<circle cx="${azX}" cy="${azY}" r="12" fill="var(--cyan-bg)" stroke="var(--cyan)" stroke-width="0.5" opacity="0.4"/>`;
+    svg += `<circle cx="${azX}" cy="${azY}" r="16" fill="rgba(0,229,255,0.03)" stroke="none"/>`;
+    svg += `<circle cx="${azX}" cy="${azY}" r="10" fill="rgba(0,229,255,0.05)" stroke="var(--cyan)" stroke-width="0.5" opacity="0.3"/>`;
 
-    // Render nodes + arcs
+    // Nodes + arcs
     if (nodes && nodes.length > 0) {
         nodes.forEach(n => {
             const geo = NODE_GEO[n.node_id];
@@ -280,22 +351,24 @@ function buildDotMap(nodes) {
             const nx = geo.col * DOT_SPACING + 4;
             const ny = geo.row * DOT_SPACING + 4;
             const color = n.is_alive ? 'var(--green)' : 'var(--red)';
+            const glowColor = n.is_alive ? 'rgba(0,230,118,0.15)' : 'rgba(255,23,68,0.15)';
 
             // Arc to Azerbaijan
             if (n.node_id !== 'node-az') {
                 const mx = (nx + azX) / 2;
                 const my = Math.min(ny, azY) - 30;
-                svg += `<path d="M${nx},${ny} Q${mx},${my} ${azX},${azY}" fill="none" stroke="${color}" stroke-width="0.8" stroke-dasharray="3 4" opacity="0.25" class="map-arc"/>`;
+                svg += `<path d="M${nx},${ny} Q${mx},${my} ${azX},${azY}" fill="none" stroke="${color}" stroke-width="0.7" stroke-dasharray="3 4" opacity="0.2" class="map-arc"/>`;
             }
 
-            // Node dot + pulse ring
-            svg += `<circle cx="${nx}" cy="${ny}" r="3" fill="${color}"/>`;
-            svg += `<circle cx="${nx}" cy="${ny}" r="6" fill="none" stroke="${color}" stroke-width="0.8" opacity="0.4" class="node-ring"/>`;
+            // Node glow + dot + ring
+            svg += `<circle cx="${nx}" cy="${ny}" r="8" fill="${glowColor}"/>`;
+            svg += `<circle cx="${nx}" cy="${ny}" r="2.5" fill="${color}"/>`;
+            svg += `<circle cx="${nx}" cy="${ny}" r="6" fill="none" stroke="${color}" stroke-width="0.7" opacity="0.3" class="node-ring"/>`;
 
             // Label
-            const labelY = ny < h / 2 ? ny - 12 : ny + 16;
-            svg += `<text x="${nx}" y="${labelY}" text-anchor="middle" fill="var(--text-dim)" font-size="8" font-family="var(--font-mono)">${geo.label}</text>`;
-            svg += `<text x="${nx}" y="${labelY + 9}" text-anchor="middle" fill="var(--text-dim)" font-size="6.5" font-family="var(--font-mono)" opacity="0.5">${n.avg_latency_ms}ms</text>`;
+            const labelY = ny < h / 2 ? ny - 14 : ny + 16;
+            svg += `<text x="${nx}" y="${labelY}" text-anchor="middle" fill="var(--text-dim)" font-size="7.5" font-family="var(--font-sans)" font-weight="500">${geo.label}</text>`;
+            svg += `<text x="${nx}" y="${labelY + 9}" text-anchor="middle" fill="var(--text-muted)" font-size="6" font-family="var(--font-mono)">${n.avg_latency_ms}ms</text>`;
         });
     }
 
@@ -316,7 +389,7 @@ async function openDrill(targetUrl) {
         <div class="drill-title">${esc(data.target.display_name || data.target.url)}</div>
         <div class="drill-url">${esc(data.target.url)}</div>
         <div style="margin-bottom:1rem"><span class="tcard-pill ${pillCls(data.status)}"><span class="status-indicator si-${statusCls(data.status)}">${statusLabel(data.status)}</span></span>
-        <span style="margin-left:1rem;font-family:var(--font-mono);font-size:0.8rem;color:var(--text-dim)">${t('confidence_label')}: ${(data.confidence * 100).toFixed(1)}%</span></div>`;
+        <span style="margin-left:1rem;font-family:var(--font-mono);font-size:0.78rem;color:var(--text-dim)">${t('confidence_label')}: ${(data.confidence * 100).toFixed(1)}%</span></div>`;
 
     if (data.node_breakdown && data.node_breakdown.length > 0) {
         html += `<div class="section-header" style="margin-top:1.5rem">${ICONS.server()} ${t('drill_per_node')}</div>`;
@@ -337,7 +410,7 @@ async function openDrill(targetUrl) {
         const inc = data.active_incident;
         html += `<div class="section-header" style="margin-top:1.5rem;color:var(--red)">${ICONS.alertTri()} ${t('drill_active_incident')}</div>
             <div style="font-size:0.82rem">${t('drill_started')} ${ago(inc.started_at)} · ${t('drill_peak')}: ${inc.peak_status} (${(inc.peak_confidence * 100).toFixed(0)}%)</div>
-            <div style="font-size:0.75rem;color:var(--text-dim);margin-top:0.3rem">${t('drill_signals')}: ${(inc.signals_fired || []).join(', ') || '—'}</div>`;
+            <div style="font-size:0.72rem;color:var(--text-dim);margin-top:4px">${t('drill_signals')}: ${(inc.signals_fired || []).join(', ') || '—'}</div>`;
     }
 
     panel.innerHTML = html;

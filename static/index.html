@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UpDown.az — Azerbaijan Internet Monitor</title>
     <meta name="description"
-        content="Real-time, multi-signal monitoring of Azerbaijan's internet infrastructure from global vantage points.">
+        content="Real-time, multi-signal monitoring of Azerbaijan's internet infrastructure from global vantage points. Enterprise-grade network intelligence dashboard.">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="icons.css">
     <link rel="icon"
@@ -16,15 +16,16 @@
 <body>
     <div class="page">
 
-        <!-- Hero -->
+        <!-- Hero — Command Center -->
         <header class="hero fade-in" role="banner">
             <div class="hero-top">
                 <div class="hero-brand">
-                    <h1>UPDOWN<span style="color:var(--text-dim);font-weight:400">.AZ</span></h1>
+                    <h1><span class="brand-dot"></span>UPDOWN<span
+                            style="color:var(--text-dim);font-weight:400">.AZ</span></h1>
                     <p data-i18n="hero_subtitle">Azerbaijan Internet Infrastructure Monitor — Multi-node external
                         reachability</p>
                 </div>
-                <div style="display:flex;align-items:center;gap:1rem">
+                <div class="hero-controls">
                     <button class="lang-btn" id="langToggle" onclick="toggleLang()"
                         aria-label="Switch language">AZ</button>
                     <div class="hero-live" aria-live="polite">
@@ -67,7 +68,7 @@
             </div>
         </section>
 
-        <!-- Target Cards (grouped by category/industry) -->
+        <!-- Target Cards (grouped by system → category) -->
         <section class="targets-wrap fade-in fade-in-2" id="targetsContainer" aria-label="Monitored targets">
             <div class="empty" data-i18n="empty_targets">Loading targets…</div>
         </section>
@@ -92,7 +93,7 @@
         <!-- Methodology -->
         <section class="methodology fade-in fade-in-4" aria-label="Confidence model methodology">
             <div class="section-header" id="shConf"><span data-i18n="section_confidence">Confidence Model</span></div>
-            <p style="font-size:0.82rem;color:var(--text-dim);margin-bottom:0.75rem" data-i18n="confidence_desc">
+            <p style="font-size:0.78rem;color:var(--text-dim);margin-bottom:10px" data-i18n="confidence_desc">
                 Status is determined by combining three independent signals. Each signal's weight reflects its
                 reliability and independence.
             </p>
@@ -117,7 +118,7 @@
             <p><span data-i18n="footer_note">Sentinel V2 monitors <strong>external reachability only</strong>.</span> <a
                     href="/methodology" data-i18n="footer_methodology">Read full methodology</a> · <a
                     href="/api/v1/export/csv" data-i18n="footer_export">Export CSV</a></p>
-            <p style="margin-top:0.4rem" data-i18n="footer_refresh">Data refreshes every 30 seconds. All times UTC.</p>
+            <p style="margin-top:6px" data-i18n="footer_refresh">Data refreshes every 30 seconds. All times UTC.</p>
         </footer>
     </div>
 
