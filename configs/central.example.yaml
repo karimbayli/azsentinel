@@ -65,10 +65,6 @@ nodes:
     region: "eu-frankfurt"
     country: "DE"
     enabled: true
-  - node_id: "node-eu"
-    region: "eu-frankfurt"
-    country: "DE"
-    enabled: true
   - node_id: "node-us"
     region: "us-east"
     country: "US"
