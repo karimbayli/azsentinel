@@ -166,6 +166,214 @@ SET category = EXCLUDED.category,
     display_name = EXCLUDED.display_name,
     display_name_en = EXCLUDED.display_name_en;
 -- ============================================================
+-- Step 3b: Mobile App API Endpoints (discovered via Charles Proxy)
+-- These are the REAL backend APIs that mobile apps connect to.
+-- ============================================================
+INSERT INTO targets (
+        url,
+        category,
+        criticality,
+        enabled,
+        display_name,
+        display_name_en
+    )
+VALUES -- ── myGov Ecosystem APIs ─────────────────────────────────
+    (
+        'https://mygov-api.e-gov.az',
+        'GOV_SERVICE',
+        10,
+        true,
+        'myGov API',
+        'myGov API'
+    ),
+    (
+        'https://mygov-apigw.e-gov.az',
+        'GOV_SERVICE',
+        10,
+        true,
+        'myGov API Gateway',
+        'myGov API Gateway'
+    ),
+    (
+        'https://mygov-cdn.e-gov.az',
+        'GOV_SERVICE',
+        8,
+        true,
+        'myGov CDN',
+        'myGov CDN'
+    ),
+    (
+        'https://api.mygovid.gov.az',
+        'GOV_SERVICE',
+        10,
+        true,
+        'myGov ID API',
+        'myGov ID API'
+    ),
+    (
+        'https://digital.login.gov.az',
+        'GOV_SERVICE',
+        10,
+        true,
+        'Rəqəmsal Login',
+        'Digital Login Portal'
+    ),
+    (
+        'https://apidigital.login.gov.az',
+        'GOV_SERVICE',
+        10,
+        true,
+        'Rəqəmsal Login API',
+        'Digital Login API'
+    ),
+    -- ── E-Sosial Mobile API ──────────────────────────────────
+    (
+        'https://mapi.sosial.gov.az',
+        'GOV_SERVICE',
+        8,
+        true,
+        'E-Sosial Mobil API',
+        'E-Social Mobile API'
+    ),
+    -- ── Banking Mobile APIs ──────────────────────────────────
+    (
+        'https://mbanking.abb-bank.az',
+        'BANK',
+        9,
+        true,
+        'ABB Mobil Bank API',
+        'ABB Mobile Banking API'
+    ),
+    (
+        'https://asm-prod.abb-bank.az',
+        'BANK',
+        9,
+        true,
+        'ABB Backend API',
+        'ABB Backend API'
+    ),
+    (
+        'https://octopus.leobank.az',
+        'BANK',
+        8,
+        true,
+        'LeoBank Mobil API',
+        'LeoBank Mobile API'
+    ),
+    (
+        'https://online.unibank.az',
+        'BANK',
+        8,
+        true,
+        'Unibank Onlayn API',
+        'Unibank Online API'
+    ),
+    (
+        'https://ibank-preprod.yelo.az',
+        'BANK',
+        7,
+        true,
+        'Yelo Bank Mobil API',
+        'Yelo Bank Mobile API'
+    ),
+    -- ── Payment & Fintech APIs ───────────────────────────────
+    (
+        'https://evamx.pashapay.az',
+        'FINTECH',
+        9,
+        true,
+        'PashaPay API',
+        'PashaPay API'
+    ),
+    (
+        'https://analytics.m10payments.com',
+        'FINTECH',
+        8,
+        true,
+        'M10 Payments Backend',
+        'M10 Payments Backend'
+    ),
+    -- ── Telecom Mobile APIs ──────────────────────────────────
+    (
+        'https://kabinetim-app.azercell.com',
+        'ISP',
+        8,
+        true,
+        'Azercell Kabinetim API',
+        'Azercell My Cabinet API'
+    ),
+    -- ── Marketplace Mobile APIs ──────────────────────────────
+    (
+        'https://gateway.umico.az',
+        'OTHER',
+        7,
+        true,
+        'Umico Mobil Gateway',
+        'Umico Mobile Gateway'
+    ),
+    (
+        'https://api.tap.az',
+        'OTHER',
+        7,
+        true,
+        'Tap.az Mobil API',
+        'Tap.az Mobile API'
+    ),
+    (
+        'https://api.turbo.az',
+        'OTHER',
+        7,
+        true,
+        'Turbo.az Mobil API',
+        'Turbo.az Mobile API'
+    ),
+    (
+        'https://api.bina.az',
+        'OTHER',
+        7,
+        true,
+        'Bina.az Mobil API',
+        'Bina.az Mobile API'
+    ),
+    -- ── City Services Mobile APIs ────────────────────────────
+    (
+        'https://appapi.azparking.az',
+        'OTHER',
+        6,
+        true,
+        'AzParking Mobil API',
+        'AzParking Mobile API'
+    ),
+    (
+        'https://web.smsradar.az',
+        'OTHER',
+        6,
+        true,
+        'SMS Radar API',
+        'SMS Radar API'
+    ),
+    (
+        'https://app.bakubus.az',
+        'OTHER',
+        6,
+        true,
+        'BakuBus Mobil API',
+        'BakuBus Mobile API'
+    ),
+    (
+        'https://api.iticket.az',
+        'OTHER',
+        6,
+        true,
+        'iTicket Mobil API',
+        'iTicket Mobile API'
+    ) ON CONFLICT (url) DO
+UPDATE
+SET category = EXCLUDED.category,
+    criticality = EXCLUDED.criticality,
+    display_name = EXCLUDED.display_name,
+    display_name_en = EXCLUDED.display_name_en;
+-- ============================================================
 -- Step 4: Backfill English names for ALL existing targets
 -- ============================================================
 -- ── Government ───────────────────────────────────────────────
