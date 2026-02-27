@@ -14,6 +14,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-sentinel_secret}
     volumes:
       - timescaledb_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-sentinel}" ]
       interval: 10s
