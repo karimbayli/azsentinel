@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -289,14 +290,19 @@ func (db *DB) InsertCorrelationResult(ctx context.Context, r models.CorrelationR
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	_, err := db.pool.Exec(ctx, `
+	signalsJSON, err := json.Marshal(r.SignalsActive)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.pool.Exec(ctx, `
 		INSERT INTO correlation_results
 			(time, target_url, status, confidence, node_signal, bgp_signal,
 			 social_signal, signals_active, total_nodes, failing_nodes)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
 		r.Time, r.TargetURL, r.Status, r.Confidence,
 		r.NodeSignal, r.BGPSignal, r.SocialSignal,
-		r.SignalsActive, r.TotalNodes, r.FailingNodes)
+		signalsJSON, r.TotalNodes, r.FailingNodes)
 	return err
 }
 
