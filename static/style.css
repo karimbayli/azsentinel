@@ -550,3 +550,121 @@ body {
     background: rgba(255, 255, 255, 0.1);
     border-color: var(--cyan-glow-border);
 }
+
+/* ================== TELEMETRY ACCORDION ================== */
+.system-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sys-group {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--stroke-dim);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: background 0.2s;
+}
+
+.sys-parent {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    background: transparent;
+    transition: background 0.2s;
+}
+
+.sys-parent:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.sys-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-dim);
+}
+
+.sys-dot.healthy {
+    background: var(--cyan-0);
+    box-shadow: 0 0 8px var(--cyan-glow-outer);
+}
+
+.sys-dot.degraded {
+    background: var(--purple-0);
+    box-shadow: 0 0 8px var(--purple-0);
+}
+
+.sys-dot.outage {
+    background: #EF4444;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+}
+
+.sys-name {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-hi);
+    letter-spacing: 0.5px;
+}
+
+.sys-ratio {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    font-weight: 500;
+}
+
+.sys-chevron {
+    width: 16px;
+    height: 16px;
+    fill: var(--text-dim);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Children container */
+.sys-children {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.sys-group.expanded .sys-children {
+    max-height: 1000px;
+    border-top: 1px solid var(--stroke-dim);
+}
+
+.sys-group.expanded .sys-chevron {
+    transform: rotate(180deg);
+}
+
+.sys-child {
+    padding: 10px 16px 10px 36px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.sys-child:last-child {
+    border-bottom: none;
+}
+
+.sys-child-name {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text-hi);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sys-child-latency {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+}

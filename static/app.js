@@ -188,6 +188,93 @@ function renderKPIs(statuses, bgpEvents, incidents) {
     }
 }
 
+// ── SYSTEM HEALTH ACCORDION ──
+function statusCls(s) {
+    if (s === 'HEALTHY') return 'healthy';
+    if (s === 'DEGRADED') return 'degraded';
+    return 'outage';
+}
+
+function renderSystemHealth(statuses) {
+    const list = $('#systemList');
+    if (!list) return;
+
+    if (!statuses || statuses.length === 0) {
+        list.innerHTML = `<div class="t-label">Analysis empty.</div>`;
+        return;
+    }
+
+    const sysGroups = {};
+    const standalone = [];
+
+    statuses.forEach(s => {
+        if (s.target.category === 'ANCHOR') return;
+        const sys = s.target.parent_system;
+        if (sys) {
+            if (!sysGroups[sys]) sysGroups[sys] = [];
+            sysGroups[sys].push(s);
+        } else {
+            standalone.push(s);
+        }
+    });
+
+    let html = '';
+
+    // Render grouped systems
+    Object.keys(sysGroups).sort().forEach(sys => {
+        const items = sysGroups[sys];
+        const sysDisplayName = items[0].target.display_name?.split(' ')[0] || sys;
+
+        let healthyCount = 0;
+        let worstStatus = 'HEALTHY';
+
+        items.forEach(child => {
+            if (child.status === 'HEALTHY') healthyCount++;
+            if (child.status === 'DEGRADED' && worstStatus === 'HEALTHY') worstStatus = 'DEGRADED';
+            if (child.status === 'PARTIAL_OUTAGE' || child.status === 'MAJOR_OUTAGE') worstStatus = 'MAJOR_OUTAGE';
+        });
+
+        // Use custom outage class if it's outage to keep the CSS mapping clean
+        if (worstStatus === 'PARTIAL_OUTAGE' || worstStatus === 'MAJOR_OUTAGE') worstStatus = 'OUTAGE';
+
+        html += `
+            <div class="sys-group">
+                <div class="sys-parent" onclick="this.parentElement.classList.toggle('expanded')">
+                    <div class="sys-dot ${statusCls(worstStatus)}"></div>
+                    <div class="sys-name">${esc(sysDisplayName)}</div>
+                    <div class="sys-ratio">${healthyCount}/${items.length}</div>
+                    <svg class="sys-chevron" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
+                </div>
+                <div class="sys-children">
+        `;
+
+        items.forEach(c => {
+            const childName = c.target.display_name || c.target.url.replace(/^https?:\/\//, '');
+            let pStatus = statusCls(c.status);
+
+            // Get latency
+            let ms = '--';
+            if (c.node_breakdown && c.node_breakdown.length > 0) {
+                const azNode = c.node_breakdown.find(n => n.node_id.includes('az'));
+                if (azNode && azNode.total_ms) ms = azNode.total_ms;
+            }
+
+            html += `
+                <div class="sys-child">
+                    <div class="sys-dot ${pStatus}"></div>
+                    <div class="sys-child-name">${esc(childName)}</div>
+                    <div class="sys-child-latency">${ms}ms</div>
+                </div>
+            `;
+        });
+
+        html += `</div></div>`;
+    });
+
+    // Option to render standalone if needed, but per request grouping is focus
+    list.innerHTML = html;
+}
+
 // ── MAIN LOOP ──
 async function refresh() {
     const [statuses, nodes, bgp, incidents] = await Promise.all([
@@ -198,6 +285,7 @@ async function refresh() {
     ]);
 
     renderKPIs(statuses || [], bgp || [], incidents || []);
+    renderSystemHealth(statuses || []);
     buildMap(nodes);
     renderIncidents(incidents || []);
 }
