@@ -220,10 +220,38 @@ function renderSystemHealth(statuses) {
 
     let html = '';
 
+    // Known systems Dictionary for enterprise-grade UI presentation
+    const knownSystems = {
+        'mygov': 'myGov',
+        'egov': 'E-Government',
+        'asan': 'ASAN',
+        'sima': 'SIMA',
+        'esosial': 'E-Sosial',
+        'abb': 'ABB Bank',
+        'kapitalbank': 'Kapital Bank',
+        'm10': 'm10 / PashaPay',
+        'leo': 'Leobank',
+        'azercell': 'Azercell',
+        'bakcell': 'Bakcell',
+        'nar': 'Nar Mobile',
+        'agtelecom': 'Aztelekom',
+        'baktelecom': 'Baktelecom',
+        'katv': 'KATV1',
+        'citynet': 'CityNet'
+    };
+
     // Render grouped systems
     Object.keys(sysGroups).sort().forEach(sys => {
         const items = sysGroups[sys];
-        const sysDisplayName = items[0].target.display_name?.split(' ')[0] || sys;
+        let sysDisplayName = sys.toUpperCase();
+
+        if (knownSystems[sys]) {
+            sysDisplayName = knownSystems[sys];
+        } else if (items[0].target.display_name_en) {
+            sysDisplayName = items[0].target.display_name_en.split(' ')[0];
+        } else if (items[0].target.display_name) {
+            sysDisplayName = items[0].target.display_name.split(' ')[0];
+        }
 
         let healthyCount = 0;
         let worstStatus = 'HEALTHY';
@@ -234,7 +262,6 @@ function renderSystemHealth(statuses) {
             if (child.status === 'PARTIAL_OUTAGE' || child.status === 'MAJOR_OUTAGE') worstStatus = 'MAJOR_OUTAGE';
         });
 
-        // Use custom outage class if it's outage to keep the CSS mapping clean
         if (worstStatus === 'PARTIAL_OUTAGE' || worstStatus === 'MAJOR_OUTAGE') worstStatus = 'OUTAGE';
 
         html += `
@@ -249,13 +276,12 @@ function renderSystemHealth(statuses) {
         `;
 
         items.forEach(c => {
-            const childName = c.target.display_name || c.target.url.replace(/^https?:\/\//, '');
+            const childName = c.target.display_name_en || c.target.display_name || c.target.url.replace(/^https?:\/\//, '');
             let pStatus = statusCls(c.status);
 
-            // Get latency
             let ms = '--';
             if (c.node_breakdown && c.node_breakdown.length > 0) {
-                const azNode = c.node_breakdown.find(n => n.node_id.includes('az'));
+                const azNode = c.node_breakdown.find(n => n.node_id.includes('az')) || c.node_breakdown[0];
                 if (azNode && azNode.total_ms) ms = azNode.total_ms;
             }
 
@@ -271,7 +297,31 @@ function renderSystemHealth(statuses) {
         html += `</div></div>`;
     });
 
-    // Option to render standalone if needed, but per request grouping is focus
+    // Render standalone targets as flat rows
+    if (standalone.length > 0) {
+        standalone.forEach(c => {
+            const childName = c.target.display_name_en || c.target.display_name || c.target.url.replace(/^https?:\/\//, '');
+            let pStatus = statusCls(c.status);
+
+            let ms = '--';
+            if (c.node_breakdown && c.node_breakdown.length > 0) {
+                const azNode = c.node_breakdown.find(n => n.node_id.includes('az')) || c.node_breakdown[0];
+                if (azNode && azNode.total_ms) ms = azNode.total_ms;
+            }
+
+            html += `
+                <div class="sys-group">
+                    <div class="sys-parent" style="cursor: default;">
+                        <div class="sys-dot ${pStatus}"></div>
+                        <div class="sys-name">${esc(childName)}</div>
+                        <div class="sys-ratio" style="font-size: 11px;">${ms}ms</div>
+                        <div style="width:16px;"></div> <!-- Placeholder for alignment -->
+                    </div>
+                </div>
+            `;
+        });
+    }
+
     list.innerHTML = html;
 }
 
