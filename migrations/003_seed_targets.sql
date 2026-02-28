@@ -29,11 +29,11 @@ INSERT INTO targets (
         display_name
     )
 VALUES (
-        'https://e-gov.az',
+        'https://mygov.az',
         'GOV',
         10,
         true,
-        'E-Government Portal'
+        'MyGov Portal'
     ),
     (
         'https://asan.gov.az',
@@ -384,7 +384,7 @@ VALUES (
     (
         'https://1news.az',
         'MEDIA',
-        6,
+        7,
         true,
         '1news.az'
     ),
@@ -557,13 +557,6 @@ VALUES (
         'Azadlıq'
     ),
     (
-        'https://meydan.tv',
-        'MEDIA',
-        6,
-        true,
-        'Meydan TV'
-    ),
-    (
         'https://mediaaz.az',
         'MEDIA',
         5,
@@ -573,7 +566,7 @@ VALUES (
     (
         'https://caliber.az',
         'MEDIA',
-        6,
+        7,
         true,
         'Caliber.az'
     ) ON CONFLICT (url) DO

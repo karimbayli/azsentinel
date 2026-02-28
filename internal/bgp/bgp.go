@@ -273,19 +273,14 @@ func (m *Monitor) connect(ctx context.Context, collector string) error {
 	}
 	defer conn.Close()
 
-	// Build subscription data — only include path filter if ASNs are configured
+	// Build subscription data — subscribe to all updates for this collector to avoid RIPE rejecting complex regex paths.
+	// Filtering by ASN is already handled locally in processMessage().
 	subData := map[string]interface{}{
 		"type": "UPDATE",
 		"host": collector,
 		"socketOptions": map[string]bool{
 			"includeRaw": false,
 		},
-	}
-
-	// FIX R-12: Server-side ASN filter to reduce bandwidth.
-	asnFilter := m.buildASNFilter()
-	if asnFilter != "" {
-		subData["path"] = asnFilter
 	}
 
 	subscribe := map[string]interface{}{
@@ -297,8 +292,7 @@ func (m *Monitor) connect(ctx context.Context, collector string) error {
 	}
 
 	m.logger.Info("subscribed to RIPE RIS Live",
-		zap.String("collector", collector),
-		zap.String("asn_filter", asnFilter))
+		zap.String("collector", collector))
 
 	// Keepalive: send periodic pings to prevent idle disconnect
 	pingDone := make(chan struct{})
@@ -335,21 +329,6 @@ func (m *Monitor) connect(ctx context.Context, collector string) error {
 
 		m.processMessage(ctx, message, collector)
 	}
-}
-
-// buildASNFilter builds a regex pattern for RIS Live server-side filtering.
-// Matches any of the watched ASNs appearing in the AS-path.
-func (m *Monitor) buildASNFilter() string {
-	// RIS Live supports regex in the "path" field.
-	// Pattern: "29049|31721|39232|34377|57021"
-	result := ""
-	for asn := range m.watchASNs {
-		if result != "" {
-			result += "|"
-		}
-		result += fmt.Sprintf("%d", asn)
-	}
-	return result
 }
 
 // risMessage represents a RIPE RIS Live message.
