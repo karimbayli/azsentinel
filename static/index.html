@@ -4,9 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Netwatch.az</title>
+    <title>Netwatch.az — API Telemetry</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="icons.css">
 </head>
 
 <body>
@@ -17,7 +16,7 @@
     <div class="app-container">
 
         <!-- ==========================================
-             TOP BAR (72px height)
+             TOP BAR
              ========================================== -->
         <header class="top-bar">
             <!-- Left -->
@@ -29,34 +28,31 @@
                 </div>
                 <div class="brand-text">
                     <div class="t-h1">Netwatch.az</div>
-                    <div class="t-sub" style="font-weight: 500;">Serving beta</div>
+                    <div class="t-sub" style="font-weight: 500;">API Telemetry</div>
                 </div>
             </div>
 
-            <!-- Center -->
+            <!-- Center (Live stats from APIs) -->
             <div class="top-bar-center glass-panel">
-                <div class="t-metric"><span class="status-dot"></span>National Status: <span class="t-metric-bold"
-                        style="color:var(--cyan-0);">STABLE</span></div>
+                <div class="t-metric"><span class="status-dot"></span>System: <span class="t-metric-bold" id="topStatus"
+                        style="color:var(--cyan-0);">--</span></div>
                 <div class="metric-divider">•</div>
-                <div class="t-metric">Confidence: <span class="t-metric-bold" id="topConfidence">--%</span></div>
+                <div class="t-metric">Endpoints: <span class="t-metric-bold" id="topEndpoints">--</span></div>
                 <div class="metric-divider">•</div>
-                <div class="t-metric">Active incidents: <span class="t-metric-bold">0|1|0</span></div>
+                <div class="t-metric">Incidents: <span class="t-metric-bold" id="topIncidents">0</span></div>
                 <div class="metric-divider">•</div>
-                <div class="t-metric">Last Scan: <span class="t-metric-bold" id="topLastScan">--:--:--</span></div>
+                <div class="t-metric">Last Sync: <span class="t-metric-bold" id="topLastScan">--:--:--</span></div>
             </div>
 
             <!-- Right -->
             <div class="top-bar-right">
                 <button class="lang-toggle" onclick="toggleLang()"><span class="active" id="langEN">EN</span> | <span
                         id="langAZ">AZ</span></button>
-                <div class="hamburger">
-                    <span></span><span></span><span></span>
-                </div>
             </div>
         </header>
 
         <!-- ==========================================
-             MAIN CONTENT (split ~72% / 28%)
+             MAIN CONTENT
              ========================================== -->
         <main class="main-content">
 
@@ -66,46 +62,42 @@
                 <!-- Left Map Area -->
                 <section class="map-area glass-panel glow-cyan" id="mapSection">
                     <div class="map-svg-container" id="azMapContainer">
-                        <!-- SVG Map populated by JS -->
+                        <!-- SVG Map dynamically drawn by JS -->
                     </div>
                 </section>
 
-                <!-- Right KPI Stack -->
+                <!-- Right API Stack -->
                 <section class="kpi-stack">
 
-                    <!-- KPI 1: SLA Compliance (Hero) -->
+                    <!-- KPI 1: Telemetry Confidence -->
                     <div class="kpi-card glass-panel kpi-hero-card">
-                        <div class="t-kpi-title" style="color: var(--cyan-0);">SLA Compliance</div>
-                        <div class="t-hero" id="kpiSLA">--.--%</div>
+                        <div class="t-kpi-title" style="color: var(--cyan-0);">Telemetry Confidence</div>
+                        <div class="t-hero" id="kpiConfidence">--.--%</div>
                     </div>
 
-                    <!-- KPI 2: Core Metrics -->
+                    <!-- KPI 2: Live Metrics -->
                     <div class="kpi-card glass-panel">
                         <div class="kpi-row">
-                            <span class="t-label">Critical Infrastructure</span>
-                            <span class="kpi-val ok">STABLE</span>
+                            <span class="t-label">Monitored Systems</span>
+                            <span class="kpi-val" id="kpiSystems">--</span>
                         </div>
                         <div class="kpi-row">
-                            <span class="t-label">Financial Risk Exposure</span>
-                            <span class="kpi-val">$0</span>
+                            <span class="t-label">Monitored Endpoints</span>
+                            <span class="kpi-val" id="kpiEndpoints">--</span>
                         </div>
                         <div class="kpi-row">
-                            <span class="t-label">Censorship Signals</span>
-                            <span class="kpi-val">OFF <span style="color:var(--stroke-dim)">|</span> 0</span>
-                        </div>
-                        <div class="kpi-row">
-                            <span class="t-label">BGP Anomalies</span>
-                            <span class="kpi-val">OFF <span style="color:var(--stroke-dim)">|</span> <span
-                                    id="kpiBGP">1</span></span>
+                            <span class="t-label">BGP Routing Anomalies</span>
+                            <span class="kpi-val"><span id="kpiBGP" style="color:var(--cyan-0)">0</span></span>
                         </div>
                     </div>
 
-                    <!-- KPI 3: System Health -->
+                    <!-- KPI 3: API Grouping (Accordion) -->
                     <div class="kpi-card glass-panel" style="flex:1; padding-bottom:0; overflow:hidden;">
                         <div class="t-kpi-title">System Health</div>
                         <div class="system-list scrollable" id="systemList"
                             style="flex:1; overflow-y:auto; margin-top:4px; display:flex; flex-direction:column; gap:8px; padding-right:8px; padding-bottom:24px;">
-                            <div class="t-label">Initializing telemetry...</div>
+                            <div class="t-label" style="text-align: center; margin-top: 20px;">Fetching from APIs...
+                            </div>
                         </div>
                     </div>
 
@@ -115,45 +107,12 @@
             <!-- BOTTOM INCIDENTS STRIP -->
             <section class="incidents-strip">
                 <div class="incidents-header">
-                    <div class="i-title">Active Incidents</div>
+                    <div class="i-title">Active Outages & Disruption Events</div>
                     <div class="i-line"></div>
                 </div>
 
                 <div class="incidents-grid" id="incidentGrid">
-
-                    <!-- Incident Card 1 (Sample Purple) -->
-                    <div class="incident-card glass-panel purple glow-purple">
-                        <div class="ic-top">
-                            <div class="ic-icon" style="background: var(--purple-0);">
-                                <svg viewBox="0 0 24 24">
-                                    <path
-                                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-                                </svg>
-                            </div>
-                            <div class="ic-titles">
-                                <div class="ic-name">routing.provider.az</div>
-                                <div class="ic-tag">Global disruption</div>
-                            </div>
-                        </div>
-                        <div class="ic-meta">
-                            <div class="ic-meta-row">CONFIDENCE: <strong style="color:var(--purple-0)">92%</strong> •
-                                Node / BGP / Social</div>
-                            <div class="ic-meta-row" style="margin-top:2px;">Started 12:42 | Ongoing</div>
-                        </div>
-                        <div class="ic-btn">Open Incident Briefing</div>
-                    </div>
-
-                    <!-- Additional slot placeholders for JS -->
-                    <div class="incident-card glass-panel" style="justify-content:center; align-items:center;">
-                        <span class="t-label">Awaiting telemetry...</span>
-                    </div>
-                    <div class="incident-card glass-panel" style="justify-content:center; align-items:center;">
-                        <span class="t-label">Awaiting telemetry...</span>
-                    </div>
-                    <div class="incident-card glass-panel" style="justify-content:center; align-items:center;">
-                        <span class="t-label">Awaiting telemetry...</span>
-                    </div>
-
+                    <!-- Populated dynamically via JS from /api/v1/incidents -->
                 </div>
             </section>
 
