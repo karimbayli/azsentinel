@@ -144,3 +144,42 @@ type Methodology struct {
 	KnownLimitations   []string           `json:"known_limitations"`
 	VantageNodes       []Node             `json:"vantage_nodes"`
 }
+
+// DashboardSummary represents the complete state of the dashboard for the frontend.
+type DashboardSummary struct {
+	KPIs      DashboardKPIs      `json:"kpis"`
+	Systems   []DashboardSystem  `json:"systems"`
+	Incidents []Incident         `json:"incidents"`
+	MapNodes  []DashboardMapNode `json:"map_nodes"`
+}
+
+type DashboardKPIs struct {
+	MonitoredSystems     int       `json:"monitored_systems"`
+	TotalEndpoints       int       `json:"total_endpoints"`
+	ActiveIncidentsCount int       `json:"active_incidents_count"`
+	BGPAnomaliesCount    int       `json:"bgp_anomalies_count"`
+	LastScanTime         time.Time `json:"last_scan_time"`
+}
+
+type DashboardSystem struct {
+	ID               string              `json:"id"`
+	DisplayName      string              `json:"display_name"`
+	Status           string              `json:"status"` // HEALTHY, DEGRADED, OUTAGE
+	EndpointsHealthy int                 `json:"endpoints_healthy"`
+	EndpointsTotal   int                 `json:"endpoints_total"`
+	Endpoints        []DashboardEndpoint `json:"endpoints"`
+}
+
+type DashboardEndpoint struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"display_name"`
+	Status      string `json:"status"`
+	LatencyMs   int    `json:"latency_ms,omitempty"`
+}
+
+type DashboardMapNode struct {
+	ID        string `json:"id"`
+	Label     string `json:"label"`
+	IsAlive   bool   `json:"is_alive"`
+	LatencyMs int    `json:"latency_ms,omitempty"`
+}

@@ -1,5 +1,5 @@
 /* ============================================================
-   NETWATCH.AZ — Dashboard JavaScript Logic
+   NETWATCH.AZ — Dashboard JavaScript Logic (BFF Pattern)
    ============================================================ */
 const API = '/api/v1';
 const $ = s => document.querySelector(s);
@@ -20,14 +20,21 @@ function timeOnly(iso) {
     return d.toLocaleTimeString('en-GB') + ' UTC';
 }
 
+async function fetchJSON(url) {
+    try {
+        const r = await fetch(url);
+        if (!r.ok) return null;
+        return await r.json();
+    } catch {
+        return null;
+    }
+}
+
 // ── RENDER AZERBAIJAN MAP ──
-// Map drawing with outer glow and neon arcs
 function buildMap(nodes) {
     const container = $('#azMapContainer');
     if (!container) return;
 
-    // Use full relative coords matching SVG viewBox
-    // Let's set the viewBox to roughly 1000x600 for high resolution plotting
     const W = 1000;
     const H = 600;
     const AZ_X = 500;
@@ -44,7 +51,6 @@ function buildMap(nodes) {
     svg += `<circle cx="${AZ_X}" cy="${AZ_Y}" r="24" class="map-node-glow" />`;
     svg += `<text x="${AZ_X}" y="${AZ_Y - 30}" text-anchor="middle" class="node-label">BAKU</text>`;
 
-    // External Nodes
     const pos = {
         'node-eu-central': { x: 200, y: 150, lbl: 'FRANKFURT', arc: 'map-arc-cyan' },
         'node-us': { x: 100, y: 350, lbl: 'ASHBURN', arc: 'map-arc-purple' },
@@ -53,23 +59,20 @@ function buildMap(nodes) {
 
     if (nodes && nodes.length > 0) {
         nodes.forEach(n => {
-            const p = pos[n.node_id];
-            if (!p || n.node_id === 'node-az') return;
+            const p = pos[n.id];
+            if (!p || n.id === 'node-az') return;
 
-            // Draw arc
             const mx = (p.x + AZ_X) / 2;
             const my = Math.min(p.y, AZ_Y) - 100;
             const dStr = `M ${p.x} ${p.y} Q ${mx} ${my} ${AZ_X} ${AZ_Y}`;
 
             svg += `<path d="${dStr}" class="${p.arc}" />`;
 
-            // Draw node
             const glowCls = n.is_alive ? 'map-node-glow' : 'map-node-glow';
             svg += `<circle cx="${p.x}" cy="${p.y}" r="20" class="${glowCls}" style="fill:${n.is_alive ? 'var(--cyan-glow-outer)' : 'var(--purple-glow-outer)'}" />`;
             svg += `<circle cx="${p.x}" cy="${p.y}" r="4" style="fill:${n.is_alive ? 'var(--cyan-0)' : 'var(--purple-0)'}" />`;
 
-            // Text
-            let latencyTxt = n.avg_latency_ms ? `${n.avg_latency_ms}ms` : '';
+            let latencyTxt = n.latency_ms ? `${n.latency_ms}ms` : '';
             svg += `<text x="${p.x}" y="${p.y + 24}" text-anchor="middle" class="node-label">${p.lbl} ${latencyTxt}</text>`;
         });
     }
@@ -83,7 +86,6 @@ function renderIncidents(incidents) {
     const grid = $('#incidentGrid');
     if (!grid) return;
 
-    // Keep exact 4 layout
     let html = '';
 
     for (let i = 0; i < 4; i++) {
@@ -115,7 +117,6 @@ function renderIncidents(incidents) {
                 </div>
             `;
         } else {
-            // Empties
             html += `
                 <div class="incident-card glass-panel" style="justify-content:center; align-items:center;">
                     <span class="t-label">Awaiting telemetry...</span>
@@ -127,65 +128,24 @@ function renderIncidents(incidents) {
     grid.innerHTML = html;
 }
 
-// ── KPIS & SECTORS ──
-function renderKPIs(statuses, bgpEvents, incidents) {
-    if (!statuses) return;
+// ── KPIS ──
+function renderKPIs(kpis) {
+    if (!kpis) return;
 
-    const real = statuses.filter(s => s.target.category !== 'ANCHOR');
+    const kpiMs = $('#kpiMonitoredSystems');
+    if (kpiMs) kpiMs.textContent = kpis.monitored_systems || '0';
 
-    // SLA Hero Calculation
-    let totalConf = 0;
-    real.forEach(s => totalConf += s.confidence);
-    const avgConf = real.length > 0 ? (totalConf / real.length) : 0;
+    const topConf = $('#topEndpoints');
+    if (topConf) topConf.textContent = kpis.total_endpoints || '0';
 
-    const kpiSla = $('#kpiSLA');
-    if (kpiSla) kpiSla.textContent = `${(avgConf * 100).toFixed(2)}%`;
-
-    const topConf = $('#topConfidence');
-    if (topConf) topConf.textContent = `${(avgConf * 100).toFixed(0)}%`;
-
-    // Last Scan time
     const lu = $('#topLastScan');
-    if (lu) lu.textContent = new Date().toLocaleTimeString('en-GB', { hour12: false });
+    if (lu && kpis.last_scan_time) lu.textContent = new Date(kpis.last_scan_time).toLocaleTimeString('en-GB', { hour12: false });
 
-    // Top Bar Incidents count
-    const openCount = incidents.filter(i => !i.resolved_at).length;
-    // Formatting as requested: 0|1|0 (we can use openCount for the middle)
+    const incs = $('#topActiveIncs');
+    if (incs) incs.textContent = kpis.active_incidents_count || '0';
 
-    // BGP Anomalies count
-    const bgpCount = bgpEvents.filter(e => e.event_type === 'WITHDRAW').length;
     const kb = $('#kpiBGP');
-    if (kb) kb.textContent = bgpCount;
-
-    // Sector Analysis
-    const sectors = {};
-    real.forEach(s => {
-        const cat = s.target.category;
-        if (!sectors[cat]) {
-            sectors[cat] = { total: 0, healthy: 0 };
-        }
-        sectors[cat].total++;
-        if (s.status === 'HEALTHY') sectors[cat].healthy++;
-    });
-
-    const secList = $('#sectorList');
-    if (secList) {
-        let sh = '';
-        Object.entries(sectors).sort((a, b) => b[1].total - a[1].total).forEach(([cat, stats]) => {
-            const pct = Math.round((stats.healthy / stats.total) * 100);
-            let cCls = 'ok';
-            let cStyle = 'color: var(--cyan-0);';
-            if (pct < 100) { cCls = 'warn'; cStyle = 'color: var(--purple-0);'; }
-
-            sh += `
-                <div class="sector-item">
-                    <span class="sector-name">${esc(cat)}</span>
-                    <span class="sector-status" style="${cStyle}">${pct}%</span>
-                </div>
-            `;
-        });
-        secList.innerHTML = sh || '<div class="t-label">Analysis empty.</div>';
-    }
+    if (kb) kb.textContent = kpis.bgp_anomalies_count || '0';
 }
 
 // ── SYSTEM HEALTH ACCORDION ──
@@ -195,149 +155,73 @@ function statusCls(s) {
     return 'outage';
 }
 
-function renderSystemHealth(statuses) {
+function renderSystemHealth(systems) {
     const list = $('#systemList');
     if (!list) return;
 
-    if (!statuses || statuses.length === 0) {
+    if (!systems || systems.length === 0) {
         list.innerHTML = `<div class="t-label">Analysis empty.</div>`;
         return;
     }
 
-    const sysGroups = {};
-    const standalone = [];
-
-    statuses.forEach(s => {
-        if (s.target.category === 'ANCHOR') return;
-        const sys = s.target.parent_system;
-        if (sys) {
-            if (!sysGroups[sys]) sysGroups[sys] = [];
-            sysGroups[sys].push(s);
-        } else {
-            standalone.push(s);
-        }
-    });
-
     let html = '';
 
-    // Known systems Dictionary for enterprise-grade UI presentation
-    const knownSystems = {
-        'mygov': 'myGov',
-        'egov': 'E-Government',
-        'asan': 'ASAN',
-        'sima': 'SIMA',
-        'esosial': 'E-Sosial',
-        'abb': 'ABB Bank',
-        'kapitalbank': 'Kapital Bank',
-        'm10': 'm10 / PashaPay',
-        'leo': 'Leobank',
-        'azercell': 'Azercell',
-        'bakcell': 'Bakcell',
-        'nar': 'Nar Mobile',
-        'agtelecom': 'Aztelekom',
-        'baktelecom': 'Baktelecom',
-        'katv': 'KATV1',
-        'citynet': 'CityNet'
-    };
-
-    // Render grouped systems
-    Object.keys(sysGroups).sort().forEach(sys => {
-        const items = sysGroups[sys];
-        let sysDisplayName = sys.toUpperCase();
-
-        if (knownSystems[sys]) {
-            sysDisplayName = knownSystems[sys];
-        } else if (items[0].target.display_name_en) {
-            sysDisplayName = items[0].target.display_name_en.split(' ')[0];
-        } else if (items[0].target.display_name) {
-            sysDisplayName = items[0].target.display_name.split(' ')[0];
+    systems.forEach(sys => {
+        // Flat style if it's a standalone
+        if (sys.id.startsWith('standalone_')) {
+            const ms = (sys.endpoints && sys.endpoints[0] && sys.endpoints[0].latency_ms) ? sys.endpoints[0].latency_ms : '--';
+            html += `
+                <div class="sys-group">
+                    <div class="sys-parent" style="cursor: default;">
+                        <div class="sys-dot ${statusCls(sys.status)}"></div>
+                        <div class="sys-name">${esc(sys.display_name)}</div>
+                        <div class="sys-ratio" style="font-size: 11px;">${ms}ms</div>
+                        <div style="width:16px;"></div>
+                    </div>
+                </div>
+            `;
+            return;
         }
 
-        let healthyCount = 0;
-        let worstStatus = 'HEALTHY';
-
-        items.forEach(child => {
-            if (child.status === 'HEALTHY') healthyCount++;
-            if (child.status === 'DEGRADED' && worstStatus === 'HEALTHY') worstStatus = 'DEGRADED';
-            if (child.status === 'PARTIAL_OUTAGE' || child.status === 'MAJOR_OUTAGE') worstStatus = 'MAJOR_OUTAGE';
-        });
-
-        if (worstStatus === 'PARTIAL_OUTAGE' || worstStatus === 'MAJOR_OUTAGE') worstStatus = 'OUTAGE';
-
+        // Accordion style
         html += `
             <div class="sys-group">
                 <div class="sys-parent" onclick="this.parentElement.classList.toggle('expanded')">
-                    <div class="sys-dot ${statusCls(worstStatus)}"></div>
-                    <div class="sys-name">${esc(sysDisplayName)}</div>
-                    <div class="sys-ratio">${healthyCount}/${items.length}</div>
+                    <div class="sys-dot ${statusCls(sys.status)}"></div>
+                    <div class="sys-name">${esc(sys.display_name)}</div>
+                    <div class="sys-ratio">${sys.endpoints_healthy}/${sys.endpoints_total}</div>
                     <svg class="sys-chevron" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
                 </div>
                 <div class="sys-children">
         `;
 
-        items.forEach(c => {
-            const childName = c.target.display_name_en || c.target.display_name || c.target.url.replace(/^https?:\/\//, '');
-            let pStatus = statusCls(c.status);
-
-            let ms = '--';
-            if (c.node_breakdown && c.node_breakdown.length > 0) {
-                const azNode = c.node_breakdown.find(n => n.node_id.includes('az')) || c.node_breakdown[0];
-                if (azNode && azNode.total_ms) ms = azNode.total_ms;
-            }
-
-            html += `
-                <div class="sys-child">
-                    <div class="sys-dot ${pStatus}"></div>
-                    <div class="sys-child-name">${esc(childName)}</div>
-                    <div class="sys-child-latency">${ms}ms</div>
-                </div>
-            `;
-        });
-
+        if (sys.endpoints) {
+            sys.endpoints.forEach(c => {
+                let ms = c.latency_ms ? c.latency_ms : '--';
+                html += `
+                    <div class="sys-child">
+                        <div class="sys-dot ${statusCls(c.status)}"></div>
+                        <div class="sys-child-name">${esc(c.display_name)}</div>
+                        <div class="sys-child-latency">${ms}ms</div>
+                    </div>
+                `;
+            });
+        }
         html += `</div></div>`;
     });
-
-    // Render standalone targets as flat rows
-    if (standalone.length > 0) {
-        standalone.forEach(c => {
-            const childName = c.target.display_name_en || c.target.display_name || c.target.url.replace(/^https?:\/\//, '');
-            let pStatus = statusCls(c.status);
-
-            let ms = '--';
-            if (c.node_breakdown && c.node_breakdown.length > 0) {
-                const azNode = c.node_breakdown.find(n => n.node_id.includes('az')) || c.node_breakdown[0];
-                if (azNode && azNode.total_ms) ms = azNode.total_ms;
-            }
-
-            html += `
-                <div class="sys-group">
-                    <div class="sys-parent" style="cursor: default;">
-                        <div class="sys-dot ${pStatus}"></div>
-                        <div class="sys-name">${esc(childName)}</div>
-                        <div class="sys-ratio" style="font-size: 11px;">${ms}ms</div>
-                        <div style="width:16px;"></div> <!-- Placeholder for alignment -->
-                    </div>
-                </div>
-            `;
-        });
-    }
 
     list.innerHTML = html;
 }
 
 // ── MAIN LOOP ──
 async function refresh() {
-    const [statuses, nodes, bgp, incidents] = await Promise.all([
-        fetchJSON(`${API}/status`),
-        fetchJSON(`${API}/nodes`),
-        fetchJSON(`${API}/bgp/events?hours=4`),
-        fetchJSON(`${API}/incidents?limit=10`)
-    ]);
+    const data = await fetchJSON(`${API}/dashboard/summary`);
+    if (!data) return;
 
-    renderKPIs(statuses || [], bgp || [], incidents || []);
-    renderSystemHealth(statuses || []);
-    buildMap(nodes);
-    renderIncidents(incidents || []);
+    renderKPIs(data.kpis);
+    renderSystemHealth(data.systems);
+    buildMap(data.map_nodes);
+    renderIncidents(data.incidents);
 }
 
 buildMap(null); // Draw structure instantly
