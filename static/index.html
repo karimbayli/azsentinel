@@ -4,132 +4,176 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SLA & Intelligence | UPDOWN.AZ</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="icons.css">
+    <title>Netwatch.az</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="icons.css">
 </head>
 
-<body class="theme-obsidian">
-    <div class="ag-layout">
+<body>
+    <!-- Background layers -->
+    <div class="bg-nebula"></div>
+    <div class="bg-grid"></div>
+
+    <div class="app-container">
 
         <!-- ==========================================
-             LEFT SIDEBAR: Global Stats & Alerts
+             TOP BAR (72px height)
              ========================================== -->
-        <aside class="ag-sidebar ag-panel">
-            <header class="ag-brand">
-                <div class="brand-pulse"></div>
-                <div>
-                    <h1>UPDOWN<span>.AZ</span></h1>
-                    <div class="brand-sub">NETWORK INTELLIGENCE &amp; SLA</div>
-                </div>
-            </header>
-
-            <div class="ag-widget">
-                <div class="widget-title">GLOBAL SLA COMPLIANCE</div>
-                <div class="sla-ring-container main-sla">
-                    <svg viewBox="0 0 100 100" class="sla-ring">
-                        <circle cx="50" cy="50" r="45" class="ring-bg"></circle>
-                        <!-- 283 is approx 2 * pi * 45 -->
-                        <circle cx="50" cy="50" r="45" class="ring-fill" stroke-dasharray="283" stroke-dashoffset="0"
-                            id="globalSlaRing"></circle>
+        <header class="top-bar">
+            <!-- Left -->
+            <div class="top-bar-left">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" style="width:100%; height:100%; fill:#040509; padding:6px;">
+                        <path d="M12 2L2 22h20L12 2zm0 4.5l6.5 13h-13L12 6.5z" />
                     </svg>
-                    <div class="sla-value" id="globalSlaValue">--<span class="pct">%</span></div>
+                </div>
+                <div class="brand-text">
+                    <div class="t-h1">Netwatch.az</div>
+                    <div class="t-sub" style="font-weight: 500;">Serving beta</div>
                 </div>
             </div>
 
-            <div class="ag-widget">
-                <div class="widget-title">INFRASTRUCTURE HEALTH</div>
-                <div class="stat-grid">
-                    <div class="stat-box">
-                        <div class="stat-num text-cyan" id="statMonitored">0</div>
-                        <div class="stat-lbl">ENDPOINTS</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-num text-emerald" id="statHealthy">0</div>
-                        <div class="stat-lbl">HEALTHY</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-num text-amber" id="statDegraded">0</div>
-                        <div class="stat-lbl">DEGRADED</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-num text-crimson" id="statOutage">0</div>
-                        <div class="stat-lbl">OUTAGES</div>
-                    </div>
-                </div>
+            <!-- Center -->
+            <div class="top-bar-center glass-panel">
+                <div class="t-metric"><span class="status-dot"></span>National Status: <span class="t-metric-bold"
+                        style="color:var(--cyan-0);">STABLE</span></div>
+                <div class="metric-divider">•</div>
+                <div class="t-metric">Confidence: <span class="t-metric-bold" id="topConfidence">--%</span></div>
+                <div class="metric-divider">•</div>
+                <div class="t-metric">Active incidents: <span class="t-metric-bold">0|1|0</span></div>
+                <div class="metric-divider">•</div>
+                <div class="t-metric">Last Scan: <span class="t-metric-bold" id="topLastScan">--:--:--</span></div>
             </div>
 
-            <div class="ag-widget flex-fill">
-                <div class="widget-title">ACTIVE INCIDENTS</div>
-                <div class="incident-list scrollable" id="incidentList">
-                    <div class="empty-state">No active incidents detected.</div>
+            <!-- Right -->
+            <div class="top-bar-right">
+                <button class="lang-toggle" onclick="toggleLang()"><span class="active" id="langEN">EN</span> | <span
+                        id="langAZ">AZ</span></button>
+                <div class="hamburger">
+                    <span></span><span></span><span></span>
                 </div>
             </div>
-
-            <div class="ag-footer">
-                <button class="ag-btn" onclick="toggleLang()" id="langBtn">AZERBAIJANI</button>
-                <div class="live-status">LIVE <span class="live-dot"></span></div>
-            </div>
-        </aside>
+        </header>
 
         <!-- ==========================================
-             CENTER: Viewport for Map and BGP
+             MAIN CONTENT (split ~72% / 28%)
              ========================================== -->
-        <main class="ag-center">
+        <main class="main-content">
 
-            <div class="ag-panel map-panel">
-                <div class="panel-header">
-                    <div class="widget-title">AZERBAIJAN ROUTING TOPOLOGY</div>
-                    <div class="panel-controls">
-                        <span class="control-lbl" id="lastUpdate"
-                            style="font-family: var(--font-mono); font-size: 11px; color: var(--text-dim);">00:00:00
-                            UTC</span>
+            <!-- TOP SPLIT (Map ~70%, KPIs ~30%) -->
+            <div class="top-split">
+
+                <!-- Left Map Area -->
+                <section class="map-area glass-panel glow-cyan" id="mapSection">
+                    <div class="map-svg-container" id="azMapContainer">
+                        <!-- SVG Map populated by JS -->
                     </div>
-                </div>
-                <!-- The map map-viewport injects the glowing fiber map -->
-                <div class="map-viewport" id="azMapContainer"></div>
+                </section>
+
+                <!-- Right KPI Stack -->
+                <section class="kpi-stack">
+
+                    <!-- KPI 1: SLA Compliance (Hero) -->
+                    <div class="kpi-card glass-panel kpi-hero-card">
+                        <div class="t-kpi-title" style="color: var(--cyan-0);">SLA Compliance</div>
+                        <div class="t-hero" id="kpiSLA">--.--%</div>
+                    </div>
+
+                    <!-- KPI 2: Core Metrics -->
+                    <div class="kpi-card glass-panel">
+                        <div class="kpi-row">
+                            <span class="t-label">Critical Infrastructure</span>
+                            <span class="kpi-val ok">STABLE</span>
+                        </div>
+                        <div class="kpi-row">
+                            <span class="t-label">Financial Risk Exposure</span>
+                            <span class="kpi-val">$0</span>
+                        </div>
+                        <div class="kpi-row">
+                            <span class="t-label">Censorship Signals</span>
+                            <span class="kpi-val">OFF <span style="color:var(--stroke-dim)">|</span> 0</span>
+                        </div>
+                        <div class="kpi-row">
+                            <span class="t-label">BGP Anomalies</span>
+                            <span class="kpi-val">OFF <span style="color:var(--stroke-dim)">|</span> <span
+                                    id="kpiBGP">1</span></span>
+                        </div>
+                    </div>
+
+                    <!-- KPI 3: Impacted Sectors -->
+                    <div class="kpi-card glass-panel" style="flex:1;">
+                        <div class="t-kpi-title">Top Impacted Sectors</div>
+                        <div class="sector-list" id="sectorList">
+                            <div class="sector-item">
+                                <span class="sector-name">Banking & Finance</span>
+                                <span class="sector-status">100%</span>
+                            </div>
+                            <div class="sector-item">
+                                <span class="sector-name">E-Government</span>
+                                <span class="sector-status">100%</span>
+                            </div>
+                            <div class="sector-item">
+                                <span class="sector-name">Media & Press</span>
+                                <span class="sector-status">100%</span>
+                            </div>
+                            <div class="sector-item">
+                                <span class="sector-name">Internet Providers</span>
+                                <span class="sector-status">100%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </section>
             </div>
 
-            <div class="ag-panel bgp-panel">
-                <div class="panel-header">
-                    <div class="widget-title">BGP ROUTE ANNOUNCEMENTS</div>
+            <!-- BOTTOM INCIDENTS STRIP -->
+            <section class="incidents-strip">
+                <div class="incidents-header">
+                    <div class="i-title">Active Incidents</div>
+                    <div class="i-line"></div>
                 </div>
-                <div class="bgp-heatmap-container scrollable" id="bgpFeed">
-                    <div class="empty-state">Monitoring BGP announcements...</div>
+
+                <div class="incidents-grid" id="incidentGrid">
+
+                    <!-- Incident Card 1 (Sample Purple) -->
+                    <div class="incident-card glass-panel purple glow-purple">
+                        <div class="ic-top">
+                            <div class="ic-icon" style="background: var(--purple-0);">
+                                <svg viewBox="0 0 24 24">
+                                    <path
+                                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                                </svg>
+                            </div>
+                            <div class="ic-titles">
+                                <div class="ic-name">routing.provider.az</div>
+                                <div class="ic-tag">Global disruption</div>
+                            </div>
+                        </div>
+                        <div class="ic-meta">
+                            <div class="ic-meta-row">CONFIDENCE: <strong style="color:var(--purple-0)">92%</strong> •
+                                Node / BGP / Social</div>
+                            <div class="ic-meta-row" style="margin-top:2px;">Started 12:42 | Ongoing</div>
+                        </div>
+                        <div class="ic-btn">Open Incident Briefing</div>
+                    </div>
+
+                    <!-- Additional slot placeholders for JS -->
+                    <div class="incident-card glass-panel" style="justify-content:center; align-items:center;">
+                        <span class="t-label">Awaiting telemetry...</span>
+                    </div>
+                    <div class="incident-card glass-panel" style="justify-content:center; align-items:center;">
+                        <span class="t-label">Awaiting telemetry...</span>
+                    </div>
+                    <div class="incident-card glass-panel" style="justify-content:center; align-items:center;">
+                        <span class="t-label">Awaiting telemetry...</span>
+                    </div>
+
                 </div>
-            </div>
+            </section>
 
         </main>
-
-        <!-- ==========================================
-             RIGHT SIDEBAR: Targets & Sparklines
-             ========================================== -->
-        <aside class="ag-sidebar right-sidebar">
-            <div class="ag-panel full-height">
-                <div class="panel-header">
-                    <div class="widget-title" style="flex:1">ENDPOINT TELEMETRY</div>
-                    <div class="t-col-header" style="width: 70px; text-align: left;">LATENCY</div>
-                    <div class="t-col-header" style="width: 32px; text-align: center;">SLA</div>
-                </div>
-                <div class="target-list scrollable" id="targetList">
-                    <div class="empty-state" style="padding: 24px; text-align: center;">Initializing telemetry stream...
-                    </div>
-                </div>
-            </div>
-        </aside>
-
     </div>
 
-    <!-- Drilldown Modal -->
-    <div class="ag-modal" id="drillModal" onclick="if(event.target===this)closeDrill()">
-        <div class="ag-modal-content ag-panel" id="drillContent"></div>
-    </div>
-
-    <script src="icons.js"></script>
-    <script src="i18n.js"></script>
     <script src="app.js"></script>
 </body>
 
