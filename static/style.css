@@ -668,3 +668,80 @@ body {
     font-size: 11px;
     color: var(--text-dim);
 }
+
+/* ================== SCROLLBARS ================== */
+.scrollable::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.scrollable::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.scrollable::-webkit-scrollbar-thumb {
+    background: var(--stroke-dim);
+    border-radius: 4px;
+}
+
+.scrollable::-webkit-scrollbar-thumb:hover {
+    background: var(--text-dim);
+}
+
+/* ==========================================
+   MOBILE & RESPONSIVE TWEAKS 
+   ========================================== */
+
+@media (max-width: 1024px) {
+    body {
+        /* Allow scrolling on mobile */
+        overflow-y: auto;
+        height: auto;
+        display: block;
+    }
+
+    .app-container {
+        max-height: none;
+        height: auto;
+        padding: 16px;
+    }
+
+    .main-content {
+        height: auto;
+    }
+
+    /* Top Split goes vertical */
+    .top-split {
+        flex-direction: column;
+        height: auto;
+    }
+
+    /* Map gets a fixed height on mobile */
+    .map-area {
+        height: 60vw;
+        min-height: 250px;
+    }
+
+    /* KPI stack flows normally */
+    .kpi-stack {
+        height: auto;
+    }
+
+    .system-list {
+        max-height: 400px;
+    }
+
+    /* Bottom strip becomes vertical list */
+    .incidents-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* Top bar adjustments */
+    .brand-text .t-sub {
+        display: none;
+    }
+
+    .top-bar-center {
+        display: none;
+    }
+}
