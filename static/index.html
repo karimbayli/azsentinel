@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Netwatch.az — API Telemetry</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="icons.css">
 </head>
 
 <body>
@@ -46,8 +47,7 @@
 
             <!-- Right -->
             <div class="top-bar-right">
-                <button class="lang-toggle" onclick="toggleLang()"><span class="active" id="langEN">EN</span> | <span
-                        id="langAZ">AZ</span></button>
+                <button class="lang-toggle" id="langToggle" onclick="toggleLang()">AZ</button>
             </div>
         </header>
 
@@ -119,7 +119,9 @@
         </main>
     </div>
 
-    <script src="app.js"></script>
+    <script src="icons.js" defer></script>
+    <script src="i18n.js" defer></script>
+    <script src="app.js" defer></script>
 </body>
 
 </html>

@@ -274,6 +274,7 @@ function renderSystemHealth(statuses) {
 
         items.forEach(c => {
             const childName = c.target.display_name_en || c.target.display_name || c.target.url.replace(/^https?:\/\//, '');
+            const pStatus = statusCls(c.status);
             let conf = (c.confidence * 100).toFixed(0) + '%';
             if (c.status !== 'HEALTHY') {
                 conf = `<span style="color:var(--purple-0)">${conf}</span>`;
@@ -295,6 +296,7 @@ function renderSystemHealth(statuses) {
     if (standalone.length > 0) {
         standalone.forEach(c => {
             const childName = c.target.display_name_en || c.target.display_name || c.target.url.replace(/^https?:\/\//, '');
+            const pStatus = statusCls(c.status);
             let conf = (c.confidence * 100).toFixed(0) + '%';
             if (c.status !== 'HEALTHY') {
                 conf = `<span style="color:var(--purple-0)">${conf}</span>`;
