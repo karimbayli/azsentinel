@@ -7,6 +7,7 @@ const vm = require('node:vm');
 const repoRoot = path.join(__dirname, '..');
 const appJS = fs.readFileSync(path.join(repoRoot, 'static', 'app.js'), 'utf8');
 const i18nJS = fs.readFileSync(path.join(repoRoot, 'static', 'i18n.js'), 'utf8');
+const faviconSVG = fs.readFileSync(path.join(repoRoot, 'static', 'favicon.svg'), 'utf8');
 const indexHTML = fs.readFileSync(path.join(repoRoot, 'static', 'index.html'), 'utf8');
 
 function createElement(id = '') {
@@ -235,8 +236,14 @@ test('language toggle script still works with the dashboard button markup', asyn
 });
 
 test('index wires the dashboard support assets', () => {
+    assert.match(indexHTML, /rel="icon" href="favicon\.svg"/);
     assert.match(indexHTML, /id="langToggle"/);
     assert.match(indexHTML, /src="icons\.js"/);
     assert.match(indexHTML, /src="i18n\.js"/);
     assert.match(indexHTML, /src="app\.js"/);
+});
+
+test('favicon asset exists', () => {
+    assert.match(faviconSVG, /<svg/);
+    assert.match(faviconSVG, /linearGradient/);
 });
