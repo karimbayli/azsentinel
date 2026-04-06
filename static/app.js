@@ -1,24 +1,14 @@
 /* ============================================================
-   NETWATCH.AZ — Dashboard JavaScript Logic
-   Pure API Consumer (No Hardcoded HTML Bloat)
+   NETWATCH.AZ — Dashboard Logic
    ============================================================ */
+
 const API = '/api/v1';
-const $ = s => document.querySelector(s);
-const esc = s => String(s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+const $  = s => document.querySelector(s);
+const esc = s => String(s).replace(/[<>&"]/g, c =>
+    ({ '<':'&lt;', '>':'&gt;', '&':'&amp;', '"':'&quot;' }[c]));
 
-// Utility: time ago
-function ago(iso) {
-    if (!iso) return '—';
-    const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-    if (s < 60) return s + 's ago';
-    if (s < 3600) return Math.floor(s / 60) + 'm ago';
-    return Math.floor(s / 3600) + 'h ago';
-}
-
-function timeOnly(iso) {
-    if (!iso) return '--:--';
-    const d = new Date(iso);
-    return d.toLocaleTimeString('en-GB') + ' UTC';
+function timeStr() {
+    return new Date().toLocaleTimeString('en-GB', { hour12: false });
 }
 
 async function fetchJSON(url) {
@@ -26,346 +16,283 @@ async function fetchJSON(url) {
         const r = await fetch(url);
         if (!r.ok) return null;
         return await r.json();
-    } catch {
-        return null;
-    }
+    } catch { return null; }
 }
 
-// ── RENDER AZERBAIJAN MAP ──
+// ── MAP ────────────────────────────────────────────────────
+
 function buildMap(nodes) {
-    const container = $('#azMapContainer');
-    if (!container) return;
+    const el = $('#azMapContainer');
+    if (!el) return;
 
-    const W = 1000;
-    const H = 600;
-    const AZ_X = 500;
-    const AZ_Y = 300;
+    const W = 900, H = 300;
+    const BX = 450, BY = 150;
 
-    let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%; height:100%;">`;
-
-    // Abstract Azerbaijan Silhouette
-    svg += `<path class="az-silhouette" d="M350 250 Q 400 200 450 250 T 600 280 Q 700 250 650 350 T 500 400 Q 400 400 350 350 Z" />`;
-
-    // Hub pulse
-    svg += `<circle cx="${AZ_X}" cy="${AZ_Y}" r="6" class="map-pulse" />`;
-    svg += `<circle cx="${AZ_X}" cy="${AZ_Y}" r="4" class="map-node" />`;
-    svg += `<circle cx="${AZ_X}" cy="${AZ_Y}" r="24" class="map-node-glow" />`;
-    svg += `<text x="${AZ_X}" y="${AZ_Y - 30}" text-anchor="middle" class="node-label">BAKU</text>`;
-
-    const pos = {
-        'node-eu-central': { x: 200, y: 150, lbl: 'FRANKFURT', arc: 'map-arc-cyan' },
-        'node-us': { x: 100, y: 350, lbl: 'ASHBURN', arc: 'map-arc-purple' },
-        'node-asia': { x: 850, y: 450, lbl: 'MUMBAI', arc: 'map-arc-cyan' }
+    const peers = {
+        'node-eu-central': { x: 150, y:  80, label: 'FRANKFURT' },
+        'node-us':         { x:  80, y: 220, label: 'ASHBURN'   },
+        'node-asia':       { x: 780, y: 240, label: 'MUMBAI'    },
     };
 
+    let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+    svg += `<path class="az-silhouette" d="M340 110 Q380 80 430 110 T560 125 Q650 100 610 165 T480 195 Q390 195 340 160 Z"/>`;
+
+    // Arcs to peer nodes
     if (nodes && nodes.length > 0) {
         nodes.forEach(n => {
-            const p = pos[n.node_id];
-            if (!p || n.node_id === 'node-az') return;
-
-            const mx = (p.x + AZ_X) / 2;
-            const my = Math.min(p.y, AZ_Y) - 100;
-            const dStr = `M ${p.x} ${p.y} Q ${mx} ${my} ${AZ_X} ${AZ_Y}`;
-
-            svg += `<path d="${dStr}" class="${p.arc}" />`;
-
-            const glowCls = n.is_alive ? 'map-node-glow' : 'map-node-glow';
-            svg += `<circle cx="${p.x}" cy="${p.y}" r="20" class="${glowCls}" style="fill:${n.is_alive ? 'var(--cyan-glow-outer)' : 'var(--purple-glow-outer)'}" />`;
-            svg += `<circle cx="${p.x}" cy="${p.y}" r="4" style="fill:${n.is_alive ? 'var(--cyan-0)' : 'var(--purple-0)'}" />`;
-
-            let latencyTxt = n.avg_latency_ms ? `${n.avg_latency_ms}ms` : '';
-            svg += `<text x="${p.x}" y="${p.y + 24}" text-anchor="middle" class="node-label">${p.lbl} ${latencyTxt}</text>`;
+            const p = peers[n.node_id];
+            if (!p) return;
+            const mx = (p.x + BX) / 2;
+            const my = Math.min(p.y, BY) - 60;
+            const color = n.is_alive ? 'var(--cyan)' : 'var(--purple)';
+            svg += `<path d="M${p.x} ${p.y} Q${mx} ${my} ${BX} ${BY}"
+                         fill="none" stroke="${color}" stroke-width="1.5"
+                         stroke-dasharray="4 5" opacity="0.5"/>`;
+            svg += `<circle cx="${p.x}" cy="${p.y}" r="18"
+                            fill="${n.is_alive ? 'rgba(34,211,238,0.1)' : 'rgba(167,139,250,0.1)'}"/>`;
+            svg += `<circle cx="${p.x}" cy="${p.y}" r="4"
+                            fill="${n.is_alive ? 'var(--cyan)' : 'var(--purple)'}"/>`;
+            svg += `<text x="${p.x}" y="${p.y + 18}" text-anchor="middle" class="node-label">${p.label}</text>`;
         });
     }
 
+    // Baku hub
+    svg += `<circle cx="${BX}" cy="${BY}" r="22" class="map-node-glow"/>`;
+    svg += `<circle cx="${BX}" cy="${BY}" r="10" class="map-pulse"/>`;
+    svg += `<circle cx="${BX}" cy="${BY}" r="5"  class="map-node"/>`;
+    svg += `<text x="${BX}" y="${BY - 20}" text-anchor="middle" class="node-label"
+                  style="fill:var(--cyan);font-weight:700">BAKU</text>`;
     svg += `</svg>`;
-    container.innerHTML = svg;
+
+    el.innerHTML = svg;
 }
 
-// ── INCIDENTS ──
-function renderIncidents(incidents) {
-    const grid = $('#incidentGrid');
-    if (!grid) return;
+// ── SYSTEM HEALTH ──────────────────────────────────────────
 
-    let html = '';
+const knownSystems = {
+    'mygov':          'myGov',
+    'egov':           'E-Government',
+    'asan':           'ASAN',
+    'sima':           'SIMA',
+    'esosial':        'E-Sosial',
+    'abb':            'ABB Bank',
+    'kapitalbank':    'Kapital Bank',
+    'm10':            'm10 / PashaPay',
+    'leo':            'Leobank',
+    'leobank':        'LeoBank',
+    'azercell':       'Azercell',
+    'bakcell':        'Bakcell',
+    'nar':            'Nar Mobile',
+    'agtelecom':      'Aztelekom',
+    'baktelecom':     'Baktelecom',
+    'katv':           'KATV1',
+    'citynet':        'CityNet',
+    'cbar':           'Central Bank',
+    'ibar':           'International Bank',
+    'bakumetro':      'Baku Metro',
+    'bakubus':        'BakuBus',
+    'bankrespublika': 'Bank Respublika',
+    'xalqbank':       'Xalq Bank',
+    'accessbank':     'AccessBank',
+    'unibank':        'Unibank',
+    'expressbank':    'Expressbank',
+    'nikoil':         'Nikoil Bank',
+    'yelo':           'Yelo Bank',
+    'azerturkbank':   'AzerTurkBank',
+    'pashabank':      'PashaBank',
+    'socar':          'SOCAR',
+    'azal':           'AZAL Airlines',
+    'epoint':         'ePoint',
+    'azerishiq':      'Azerishiq',
+    'azeriqaz':       'Azeriqaz',
+    'azersu':         'Azersu',
+    'ady':            'ADY Railways',
+    'bina':           'Bina.az',
+    'turbo':          'Turbo.az',
+    'tap':            'Tap.az',
+    'umico':          'Umico',
+    'iticket':        'iTicket.az',
+    'lalafo':         'Lalafo.az',
+    'azparking':      'AzParking',
+    'smsradar':       'SMS Radar',
+};
 
-    for (let i = 0; i < 4; i++) {
-        if (i < incidents.length) {
-            const inc = incidents[i];
-            const isPurple = inc.peak_status === 'MAJOR_OUTAGE' || inc.peak_status === 'PARTIAL_OUTAGE';
-            const colorCls = isPurple ? 'purple glow-purple' : 'glow-cyan';
-            const textCls = isPurple ? 'var(--purple-0)' : 'var(--cyan-0)';
-            const iconSvg = isPurple
-                ? '<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>'
-                : '<svg viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>';
-
-            html += `
-                <div class="incident-card glass-panel ${colorCls}">
-                    <div class="ic-top">
-                        <div class="ic-icon" style="background: ${textCls};">
-                            ${iconSvg}
-                        </div>
-                        <div class="ic-titles">
-                            <div class="ic-name">${esc(inc.target_url.replace(/^https?:\/\//, ''))}</div>
-                            <div class="ic-tag">${inc.peak_status}</div>
-                        </div>
-                    </div>
-                    <div class="ic-meta">
-                        <div class="ic-meta-row">CONFIDENCE: <strong style="color:${textCls}">${Math.round(inc.peak_confidence * 100)}%</strong> • ${(inc.signals_fired || []).join(' / ')}</div>
-                        <div class="ic-meta-row" style="margin-top:4px;">Started ${timeOnly(inc.started_at)} | ${inc.resolved_at ? 'Resolved' : 'Ongoing'}</div>
-                    </div>
-                    <div class="ic-btn" onclick="window.location.href='#'">Open Incident Briefing</div>
-                </div>
-            `;
-        } else {
-            html += `
-                <div class="incident-card glass-panel" style="justify-content:center; align-items:center;">
-                    <span class="t-label">Awaiting telemetry...</span>
-                </div>
-            `;
-        }
-    }
-
-    grid.innerHTML = html;
-}
-
-// ── KPIS ──
-function renderKPIs(statuses, bgpEvents, incidents) {
-    if (!statuses) return;
-
-    // Filter out anchors
-    const real = statuses.filter(s => s.target.category !== 'ANCHOR');
-
-    // Uptime score: % of endpoints currently HEALTHY
-    const healthyCount = real.filter(s => s.status === 'HEALTHY').length;
-    const uptimePct = real.length > 0 ? (healthyCount / real.length * 100) : 0;
-
-    const kpiConf = $('#kpiConfidence');
-    if (kpiConf) kpiConf.textContent = `${uptimePct.toFixed(2)}%`;
-
-    // Global Top Bar
-    let globalStatus = "STABLE";
-    let globalColor = "var(--cyan-0)";
-    const openIncs = incidents.filter(i => !i.resolved_at).length;
-
-    if (openIncs > 0) {
-        globalStatus = "DEGRADED";
-        globalColor = "var(--purple-0)";
-    }
-
-    const tStat = $('#topStatus');
-    if (tStat) {
-        tStat.textContent = globalStatus;
-        tStat.style.color = globalColor;
-    }
-
-    const te = $('#topEndpoints');
-    if (te) te.textContent = real.length;
-
-    const ti = $('#topIncidents');
-    if (ti) ti.textContent = openIncs;
-
-    const ts = $('#topLastScan');
-    if (ts) ts.textContent = new Date().toLocaleTimeString('en-GB', { hour12: false });
-
-    // Side Stack KPIs
-    const bgpCount = bgpEvents.filter(e => e.event_type === 'WITHDRAW').length;
-    const kb = $('#kpiBGP');
-    if (kb) {
-        kb.textContent = bgpCount;
-        kb.style.color = bgpCount > 0 ? 'var(--purple-0)' : 'var(--cyan-0)';
-    }
-
-    const ke = $('#kpiEndpoints');
-    if (ke) ke.textContent = real.length;
-}
-
-// ── SYSTEM HEALTH ACCORDION ──
-function statusCls(s) {
-    if (s === 'HEALTHY') return 'healthy';
-    if (s === 'DEGRADED') return 'degraded';
+function dotClass(status) {
+    if (status === 'HEALTHY') return 'healthy';
+    if (status === 'DEGRADED') return 'degraded';
     return 'outage';
+}
+
+function statusLabel(s) {
+    if (s === 'HEALTHY') return `<span class="sys-ep-status" style="color:var(--green)">OK</span>`;
+    const conf = s.confidence ? ` ${(s.confidence*100).toFixed(0)}%` : '';
+    return `<span class="sys-ep-status" style="color:var(--purple)">${s.status}${conf}</span>`;
 }
 
 function renderSystemHealth(statuses) {
     const list = $('#systemList');
     if (!list) return;
 
-    if (!statuses || statuses.length === 0) {
-        list.innerHTML = `<div class="t-label" style="text-align:center; margin-top: 20px;">Analysis empty.</div>`;
+    const real = (statuses || []).filter(s => s.target.category !== 'ANCHOR');
+
+    if (real.length === 0) {
+        list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--muted)">No data.</div>`;
         return;
     }
 
-    const sysGroups = {};
+    // Group by parent_system
+    const groups = {};
     const standalone = [];
 
-    statuses.forEach(s => {
-        if (s.target.category === 'ANCHOR') return;
+    real.forEach(s => {
         const sys = s.target.parent_system;
         if (sys) {
-            if (!sysGroups[sys]) sysGroups[sys] = [];
-            sysGroups[sys].push(s);
+            if (!groups[sys]) groups[sys] = [];
+            groups[sys].push(s);
         } else {
             standalone.push(s);
         }
     });
 
-    // Update Unique Systems KPI
+    // Update KPI
     const kpiSys = $('#kpiSystems');
-    if (kpiSys) kpiSys.textContent = Object.keys(sysGroups).length + standalone.length;
+    if (kpiSys) kpiSys.textContent = Object.keys(groups).length + standalone.length;
+
+    // Update health badge
+    const allHealthy = real.every(s => s.status === 'HEALTHY');
+    const badge = $('#healthBadge');
+    if (badge) {
+        badge.textContent = allHealthy ? `${real.length} OK` : 'Issues detected';
+        badge.className = `badge ${allHealthy ? 'ok' : 'warn'}`;
+    }
 
     let html = '';
 
-    // Known systems Dictionary to beautifully format raw db slugs
-    const knownSystems = {
-        'mygov': 'myGov',
-        'egov': 'E-Government',
-        'asan': 'ASAN',
-        'sima': 'SIMA',
-        'esosial': 'E-Sosial',
-        'abb': 'ABB Bank',
-        'kapitalbank': 'Kapital Bank',
-        'm10': 'm10 / PashaPay',
-        'leo': 'Leobank',
-        'leobank': 'LeoBank',
-        'azercell': 'Azercell',
-        'bakcell': 'Bakcell',
-        'nar': 'Nar Mobile',
-        'agtelecom': 'Aztelekom',
-        'baktelecom': 'Baktelecom',
-        'katv': 'KATV1',
-        'citynet': 'CityNet',
-        'cbar': 'Central Bank',
-        'ibar': 'International Bank',
-        'bakumetro': 'Baku Metro',
-        'bakubus': 'BakuBus',
-        'bankrespublika': 'Bank Respublika',
-        'xalqbank': 'Xalq Bank',
-        'accessbank': 'AccessBank',
-        'unibank': 'Unibank',
-        'expressbank': 'Expressbank',
-        'nikoil': 'Nikoil Bank',
-        'yelo': 'Yelo Bank',
-        'azerturkbank': 'AzerTurkBank',
-        'pashabank': 'PashaBank',
-        'pashabankretail': 'PASHA Bank',
-        'socar': 'SOCAR',
-        'azal': 'AZAL Airlines',
-        'epoint': 'ePoint',
-        'azerishiq': 'Azerishiq',
-        'azeriqaz': 'Azeriqaz',
-        'azersu': 'Azersu',
-        'ady': 'ADY Railways',
-        'bina': 'Bina.az',
-        'turbo': 'Turbo.az',
-        'tap': 'Tap.az',
-        'umico': 'Umico',
-        'iticket': 'iTicket.az',
-        'lalafo': 'Lalafo.az',
-        'azparking': 'AzParking',
-        'smsradar': 'SMS Radar',
-    };
-
-    // Render grouped systems
-    Object.keys(sysGroups).sort().forEach(sys => {
-        const items = sysGroups[sys];
-        let sysDisplayName = sys.toUpperCase();
-
-        if (knownSystems[sys]) {
-            sysDisplayName = knownSystems[sys];
-        } else if (items[0].target.display_name_en) {
-            sysDisplayName = items[0].target.display_name_en.split(' ')[0];
-        } else if (items[0].target.display_name) {
-            sysDisplayName = items[0].target.display_name.split(' ')[0];
-        }
-
-        let healthyCount = 0;
-        let worstStatus = 'HEALTHY';
-
-        items.forEach(child => {
-            if (child.status === 'HEALTHY') healthyCount++;
-            if (child.status === 'DEGRADED' && worstStatus === 'HEALTHY') worstStatus = 'DEGRADED';
-            if (child.status === 'PARTIAL_OUTAGE' || child.status === 'MAJOR_OUTAGE') worstStatus = 'MAJOR_OUTAGE';
-        });
-
-        if (worstStatus === 'PARTIAL_OUTAGE' || worstStatus === 'MAJOR_OUTAGE') worstStatus = 'OUTAGE';
+    // Grouped systems
+    Object.keys(groups).sort().forEach(sys => {
+        const items  = groups[sys];
+        const label  = knownSystems[sys] || items[0].target.display_name_en?.split(' ')[0] || sys.toUpperCase();
+        const healthy = items.filter(i => i.status === 'HEALTHY').length;
+        const worst  = items.some(i => i.status !== 'HEALTHY');
+        const dc     = worst ? (items.some(i => i.status.includes('OUTAGE')) ? 'outage' : 'degraded') : 'healthy';
 
         html += `
-            <div class="sys-group">
-                <div class="sys-parent" onclick="this.parentElement.classList.toggle('expanded')">
-                    <div class="sys-dot ${statusCls(worstStatus)}"></div>
-                    <div class="sys-name">${esc(sysDisplayName)}</div>
-                    <div class="sys-ratio">${healthyCount}/${items.length}</div>
-                    <svg class="sys-chevron" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
-                </div>
-                <div class="sys-children">
-        `;
+        <div class="sys-group-header">
+            <span class="dot ${dc}"></span>
+            <span class="sys-group-name">${esc(label)}</span>
+            <span class="sys-group-ratio">${healthy}/${items.length}</span>
+        </div>`;
 
         items.forEach(c => {
-            const childName = c.target.display_name_en || c.target.display_name || c.target.url.replace(/^https?:\/\//, '');
-            const pStatus = statusCls(c.status);
-            let conf;
-            if (c.status === 'HEALTHY') {
-                conf = `<span style="color:var(--cyan-0)">OK</span>`;
-            } else {
-                conf = `<span style="color:var(--purple-0)">${(c.confidence * 100).toFixed(0)}%</span>`;
-            }
-
+            const name = c.target.display_name_en || c.target.display_name
+                         || c.target.url.replace(/^https?:\/\//, '');
             html += `
-                <div class="sys-child">
-                    <div class="sys-dot ${pStatus}"></div>
-                    <div class="sys-child-name">${esc(childName)}</div>
-                    <div class="sys-child-latency">${conf}</div>
-                </div>
-            `;
+        <div class="sys-endpoint">
+            <span class="dot ${dotClass(c.status)}"></span>
+            <span class="sys-ep-name">${esc(name)}</span>
+            ${statusLabel(c)}
+        </div>`;
         });
-
-        html += `</div></div>`;
     });
 
-    // Render standalone targets as flat rows
+    // Standalone
     if (standalone.length > 0) {
         standalone.forEach(c => {
-            const childName = c.target.display_name_en || c.target.display_name || c.target.url.replace(/^https?:\/\//, '');
-            const pStatus = statusCls(c.status);
-            let conf;
-            if (c.status === 'HEALTHY') {
-                conf = `<span style="color:var(--cyan-0)">OK</span>`;
-            } else {
-                conf = `<span style="color:var(--purple-0)">${(c.confidence * 100).toFixed(0)}%</span>`;
-            }
-
+            const name = c.target.display_name_en || c.target.display_name
+                         || c.target.url.replace(/^https?:\/\//, '');
             html += `
-                <div class="sys-group">
-                    <div class="sys-parent" style="cursor: default;">
-                        <div class="sys-dot ${pStatus}"></div>
-                        <div class="sys-name">${esc(childName)}</div>
-                        <div class="sys-ratio" style="font-size: 11px;">${conf}</div>
-                        <div style="width:16px;"></div> <!-- Placeholder for alignment -->
-                    </div>
-                </div>
-            `;
+        <div class="sys-standalone">
+            <span class="dot ${dotClass(c.status)}"></span>
+            <span class="sys-ep-name">${esc(name)}</span>
+            ${statusLabel(c)}
+        </div>`;
         });
     }
 
     list.innerHTML = html;
 }
 
-// ── MAIN LOOP ──
+// ── INCIDENTS ──────────────────────────────────────────────
+
+function renderIncidents(incidents) {
+    const grid = $('#incidentGrid');
+    if (!grid) return;
+
+    const active = (incidents || []).filter(i => !i.resolved_at).slice(0, 4);
+
+    if (active.length === 0) {
+        grid.innerHTML = `
+        <div class="incident-empty" style="grid-column:1/-1;background:var(--surface);border:1px solid var(--border);border-radius:10px;">
+            No active incidents — all systems nominal
+        </div>`;
+        return;
+    }
+
+    grid.innerHTML = active.map(inc => `
+    <div class="incident-card active">
+        <div class="inc-target">${esc(inc.target_url.replace(/^https?:\/\//, ''))}</div>
+        <span class="inc-status">${inc.peak_status.replace('_', ' ')}</span>
+        <div class="inc-meta">
+            Confidence ${Math.round(inc.peak_confidence * 100)}%
+            &nbsp;·&nbsp; ${inc.started_at ? new Date(inc.started_at).toLocaleTimeString('en-GB') + ' UTC' : ''}
+        </div>
+    </div>`).join('');
+}
+
+// ── KPIS ───────────────────────────────────────────────────
+
+function renderKPIs(statuses, bgpEvents, incidents) {
+    const real = (statuses || []).filter(s => s.target.category !== 'ANCHOR');
+    const healthyCount = real.filter(s => s.status === 'HEALTHY').length;
+    const uptimePct = real.length > 0 ? (healthyCount / real.length * 100) : 0;
+    const openIncs  = (incidents || []).filter(i => !i.resolved_at).length;
+    const bgpCount  = (bgpEvents  || []).filter(e => e.event_type === 'WITHDRAW').length;
+
+    const isOK = openIncs === 0;
+
+    const conf = $('#kpiConfidence');
+    if (conf) {
+        conf.textContent = `${uptimePct.toFixed(1)}%`;
+        conf.className = `kpi-value ${uptimePct === 100 ? 'ok' : 'warn'}`;
+    }
+
+    const te = $('#topEndpoints');   if (te) te.textContent = real.length;
+    const ti = $('#topIncidents');   if (ti) ti.textContent = openIncs;
+    const ts = $('#topLastScan');    if (ts) ts.textContent = timeStr();
+    const ke = $('#kpiEndpoints');   if (ke) ke.textContent = real.length;
+
+    const tStat = $('#topStatus');
+    if (tStat) {
+        tStat.textContent = isOK ? 'STABLE' : 'DEGRADED';
+        tStat.style.color  = isOK ? 'var(--green)' : 'var(--purple)';
+    }
+
+    const dot = $('#statDot');
+    if (dot) dot.style.background = isOK ? 'var(--green)' : 'var(--purple)';
+
+    const kb = $('#kpiBGP');
+    if (kb) {
+        kb.textContent = bgpCount;
+        kb.className = `kpi-value ${bgpCount > 0 ? 'warn' : 'ok'}`;
+    }
+}
+
+// ── MAIN LOOP ──────────────────────────────────────────────
+
 async function refresh() {
     const [statuses, nodes, bgp, incidents] = await Promise.all([
         fetchJSON(`${API}/status`),
         fetchJSON(`${API}/nodes`),
         fetchJSON(`${API}/bgp/events?hours=4`),
-        fetchJSON(`${API}/incidents?limit=10`)
+        fetchJSON(`${API}/incidents?limit=10`),
     ]);
 
-    renderKPIs(statuses || [], bgp || [], incidents || []);
-    renderSystemHealth(statuses || []);
+    renderKPIs(statuses, bgp, incidents);
+    renderSystemHealth(statuses);
     buildMap(nodes);
-    renderIncidents(incidents || []);
+    renderIncidents(incidents);
 }
 
-buildMap(null); // Draw map instantly
+buildMap(null);
 refresh();
-setInterval(refresh, 5000); // 5s pulse
+setInterval(refresh, 5000);

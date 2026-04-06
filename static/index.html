@@ -1,128 +1,96 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Netwatch.az — API Telemetry</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="icons.css">
 </head>
-
 <body>
-    <!-- Background layers -->
-    <div class="bg-nebula"></div>
-    <div class="bg-grid"></div>
 
-    <div class="app-container">
+    <header class="header">
+        <div class="header-brand">
+            <div class="brand-icon">
+                <svg viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2zm0 4.5l6.5 13h-13L12 6.5z"/></svg>
+            </div>
+            <div>
+                <div class="brand-name">Netwatch.az</div>
+                <div class="brand-sub">API Telemetry</div>
+            </div>
+        </div>
 
-        <!-- ==========================================
-             TOP BAR
-             ========================================== -->
-        <header class="top-bar">
-            <!-- Left -->
-            <div class="top-bar-left">
-                <div class="logo-icon">
-                    <svg viewBox="0 0 24 24" style="width:100%; height:100%; fill:#040509; padding:6px;">
-                        <path d="M12 2L2 22h20L12 2zm0 4.5l6.5 13h-13L12 6.5z" />
-                    </svg>
+        <div class="header-stats">
+            <div class="stat-item">
+                <span class="stat-dot" id="statDot"></span>
+                System: <strong id="topStatus">--</strong>
+            </div>
+            <div class="stat-sep"></div>
+            <div class="stat-item">Endpoints: <strong id="topEndpoints">--</strong></div>
+            <div class="stat-sep"></div>
+            <div class="stat-item">Incidents: <strong id="topIncidents">0</strong></div>
+            <div class="stat-sep"></div>
+            <div class="stat-item">Synced: <strong id="topLastScan">--:--:--</strong></div>
+        </div>
+
+        <button class="lang-btn" id="langToggle" onclick="toggleLang()">AZ</button>
+    </header>
+
+    <main class="page">
+
+        <!-- KPI row -->
+        <div class="kpi-row">
+            <div class="kpi-card">
+                <div class="kpi-label">Uptime</div>
+                <div class="kpi-value ok" id="kpiConfidence">--%</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Systems</div>
+                <div class="kpi-value neutral" id="kpiSystems">--</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Endpoints</div>
+                <div class="kpi-value neutral" id="kpiEndpoints">--</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">BGP Anomalies</div>
+                <div class="kpi-value ok" id="kpiBGP">0</div>
+            </div>
+        </div>
+
+        <!-- Map + System Health -->
+        <div class="mid-row">
+
+            <div class="map-card card">
+                <div class="card-header">
+                    <span class="card-title">Network Topology</span>
                 </div>
-                <div class="brand-text">
-                    <div class="t-h1">Netwatch.az</div>
-                    <div class="t-sub" style="font-weight: 500;">API Telemetry</div>
+                <div class="map-body" id="azMapContainer"></div>
+            </div>
+
+            <div class="systems-card">
+                <div class="card-header">
+                    <span class="card-title">System Health</span>
+                    <span class="badge ok" id="healthBadge">Loading…</span>
+                </div>
+                <div class="systems-body" id="systemList">
+                    <div style="padding:24px; text-align:center; color:var(--muted); font-size:13px;">
+                        Fetching from APIs…
+                    </div>
                 </div>
             </div>
 
-            <!-- Center (Live stats from APIs) -->
-            <div class="top-bar-center glass-panel">
-                <div class="t-metric"><span class="status-dot"></span>System: <span class="t-metric-bold" id="topStatus"
-                        style="color:var(--cyan-0);">--</span></div>
-                <div class="metric-divider">•</div>
-                <div class="t-metric">Endpoints: <span class="t-metric-bold" id="topEndpoints">--</span></div>
-                <div class="metric-divider">•</div>
-                <div class="t-metric">Incidents: <span class="t-metric-bold" id="topIncidents">0</span></div>
-                <div class="metric-divider">•</div>
-                <div class="t-metric">Last Sync: <span class="t-metric-bold" id="topLastScan">--:--:--</span></div>
-            </div>
+        </div>
 
-            <!-- Right -->
-            <div class="top-bar-right">
-                <button class="lang-toggle" id="langToggle" onclick="toggleLang()">AZ</button>
-            </div>
-        </header>
+        <!-- Incidents -->
+        <div>
+            <div class="section-title" style="margin-bottom:14px;">Active Outages &amp; Disruption Events</div>
+            <div class="incidents-grid" id="incidentGrid"></div>
+        </div>
 
-        <!-- ==========================================
-             MAIN CONTENT
-             ========================================== -->
-        <main class="main-content">
+    </main>
 
-            <!-- TOP SPLIT (Map ~70%, KPIs ~30%) -->
-            <div class="top-split">
-
-                <!-- Left Map Area -->
-                <section class="map-area glass-panel glow-cyan" id="mapSection">
-                    <div class="map-svg-container" id="azMapContainer">
-                        <!-- SVG Map dynamically drawn by JS -->
-                    </div>
-                </section>
-
-                <!-- Right API Stack -->
-                <section class="kpi-stack">
-
-                    <!-- KPI 1: Telemetry Confidence -->
-                    <div class="kpi-card glass-panel kpi-hero-card">
-                        <div class="t-kpi-title" style="color: var(--cyan-0);">Telemetry Confidence</div>
-                        <div class="t-hero" id="kpiConfidence">--.--%</div>
-                    </div>
-
-                    <!-- KPI 2: Live Metrics -->
-                    <div class="kpi-card glass-panel">
-                        <div class="kpi-row">
-                            <span class="t-label">Monitored Systems</span>
-                            <span class="kpi-val" id="kpiSystems">--</span>
-                        </div>
-                        <div class="kpi-row">
-                            <span class="t-label">Monitored Endpoints</span>
-                            <span class="kpi-val" id="kpiEndpoints">--</span>
-                        </div>
-                        <div class="kpi-row">
-                            <span class="t-label">BGP Routing Anomalies</span>
-                            <span class="kpi-val"><span id="kpiBGP" style="color:var(--cyan-0)">0</span></span>
-                        </div>
-                    </div>
-
-                    <!-- KPI 3: API Grouping (Accordion) -->
-                    <div class="kpi-card glass-panel" style="flex:1; padding-bottom:0; overflow:hidden;">
-                        <div class="t-kpi-title">System Health</div>
-                        <div class="system-list scrollable" id="systemList"
-                            style="flex:1; overflow-y:auto; margin-top:4px; display:flex; flex-direction:column; gap:8px; padding-right:8px; padding-bottom:24px;">
-                            <div class="t-label" style="text-align: center; margin-top: 20px;">Fetching from APIs...
-                            </div>
-                        </div>
-                    </div>
-
-                </section>
-            </div>
-
-            <!-- BOTTOM INCIDENTS STRIP -->
-            <section class="incidents-strip">
-                <div class="incidents-header">
-                    <div class="i-title">Active Outages & Disruption Events</div>
-                    <div class="i-line"></div>
-                </div>
-
-                <div class="incidents-grid" id="incidentGrid">
-                    <!-- Populated dynamically via JS from /api/v1/incidents -->
-                </div>
-            </section>
-
-        </main>
-    </div>
-
-    <script src="icons.js" defer></script>
     <script src="i18n.js" defer></script>
     <script src="app.js" defer></script>
 </body>
-
 </html>
