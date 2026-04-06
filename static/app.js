@@ -227,13 +227,43 @@ function renderSystemHealth(statuses) {
         'kapitalbank': 'Kapital Bank',
         'm10': 'm10 / PashaPay',
         'leo': 'Leobank',
+        'leobank': 'LeoBank',
         'azercell': 'Azercell',
         'bakcell': 'Bakcell',
         'nar': 'Nar Mobile',
         'agtelecom': 'Aztelekom',
         'baktelecom': 'Baktelecom',
         'katv': 'KATV1',
-        'citynet': 'CityNet'
+        'citynet': 'CityNet',
+        'cbar': 'Central Bank',
+        'ibar': 'International Bank',
+        'bakumetro': 'Baku Metro',
+        'bakubus': 'BakuBus',
+        'bankrespublika': 'Bank Respublika',
+        'xalqbank': 'Xalq Bank',
+        'accessbank': 'AccessBank',
+        'unibank': 'Unibank',
+        'expressbank': 'Expressbank',
+        'nikoil': 'Nikoil Bank',
+        'yelo': 'Yelo Bank',
+        'azerturkbank': 'AzerTurkBank',
+        'pashabank': 'PashaBank',
+        'pashabankretail': 'PASHA Bank',
+        'socar': 'SOCAR',
+        'azal': 'AZAL Airlines',
+        'epoint': 'ePoint',
+        'azerishiq': 'Azerishiq',
+        'azeriqaz': 'Azeriqaz',
+        'azersu': 'Azersu',
+        'ady': 'ADY Railways',
+        'bina': 'Bina.az',
+        'turbo': 'Turbo.az',
+        'tap': 'Tap.az',
+        'umico': 'Umico',
+        'iticket': 'iTicket.az',
+        'lalafo': 'Lalafo.az',
+        'azparking': 'AzParking',
+        'smsradar': 'SMS Radar',
     };
 
     // Render grouped systems
@@ -274,9 +304,11 @@ function renderSystemHealth(statuses) {
         items.forEach(c => {
             const childName = c.target.display_name_en || c.target.display_name || c.target.url.replace(/^https?:\/\//, '');
             const pStatus = statusCls(c.status);
-            let conf = (c.confidence * 100).toFixed(0) + '%';
-            if (c.status !== 'HEALTHY') {
-                conf = `<span style="color:var(--purple-0)">${conf}</span>`;
+            let conf;
+            if (c.status === 'HEALTHY') {
+                conf = `<span style="color:var(--cyan-0)">OK</span>`;
+            } else {
+                conf = `<span style="color:var(--purple-0)">${(c.confidence * 100).toFixed(0)}%</span>`;
             }
 
             html += `
@@ -296,9 +328,11 @@ function renderSystemHealth(statuses) {
         standalone.forEach(c => {
             const childName = c.target.display_name_en || c.target.display_name || c.target.url.replace(/^https?:\/\//, '');
             const pStatus = statusCls(c.status);
-            let conf = (c.confidence * 100).toFixed(0) + '%';
-            if (c.status !== 'HEALTHY') {
-                conf = `<span style="color:var(--purple-0)">${conf}</span>`;
+            let conf;
+            if (c.status === 'HEALTHY') {
+                conf = `<span style="color:var(--cyan-0)">OK</span>`;
+            } else {
+                conf = `<span style="color:var(--purple-0)">${(c.confidence * 100).toFixed(0)}%</span>`;
             }
 
             html += `
