@@ -26,8 +26,12 @@ RUN apk add --no-cache ca-certificates sqlite-libs tzdata wget && \
 
 COPY --from=builder /sentinel-central /usr/local/bin/sentinel-central
 COPY migrations/ /app/migrations/
-COPY static/ /app/static/
 COPY configs/central.example.yaml /app/configs/central.yaml
+
+# ARG before COPY busts the layer cache for static files on every build,
+# preventing stale JS/CSS from being served after deployments.
+ARG CACHEBUST=1
+COPY static/ /app/static/
 
 WORKDIR /app
 

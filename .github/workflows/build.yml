@@ -38,6 +38,8 @@ jobs:
           tags: |
             ${{ env.CENTRAL_IMAGE }}:latest
             ${{ env.CENTRAL_IMAGE }}:${{ github.sha }}
+          build-args: |
+            CACHEBUST=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
