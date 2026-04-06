@@ -43,12 +43,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Purge Cloudflare cache
-        run: |
-          curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CF_ZONE_ID }}/purge_cache" \
-            -H "Authorization: Bearer ${{ secrets.CF_API_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            --data '{"purge_everything":true}'
+      # Cloudflare cache purge is intentionally NOT here.
+      # Purge AFTER your deployment panel has pulled the new image.
+      # Run the purge-cache workflow manually once the container is live.
 
   build-probe:
     runs-on: ubuntu-latest
