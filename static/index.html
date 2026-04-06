@@ -90,6 +90,22 @@
 
     </main>
 
+    <!-- Detail panel -->
+    <div class="overlay" id="overlay" onclick="closeDetail()"></div>
+    <aside class="detail-panel" id="detailPanel">
+        <div class="dp-header">
+            <div class="dp-top">
+                <span class="dp-name" id="dpName"></span>
+                <button class="dp-close" onclick="closeDetail()">✕</button>
+            </div>
+            <div class="dp-url" id="dpUrl"></div>
+            <div class="dp-status-row" id="dpStatusRow"></div>
+        </div>
+        <div class="dp-body" id="dpBody">
+            <div class="dp-loading">Loading…</div>
+        </div>
+    </aside>
+
     <script src="i18n.js" defer></script>
     <script src="app.js" defer></script>
 </body>

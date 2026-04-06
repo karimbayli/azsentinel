@@ -187,7 +187,8 @@ function renderSystemHealth(statuses) {
             const name = c.target.display_name_en || c.target.display_name
                          || c.target.url.replace(/^https?:\/\//, '');
             html += `
-        <div class="sys-endpoint">
+        <div class="sys-endpoint" style="cursor:pointer"
+             onclick="openDetail('${esc(c.target.url)}','${esc(name)}')">
             <span class="dot ${dotClass(c.status)}"></span>
             <span class="sys-ep-name">${esc(name)}</span>
             ${statusLabel(c)}
@@ -201,7 +202,8 @@ function renderSystemHealth(statuses) {
             const name = c.target.display_name_en || c.target.display_name
                          || c.target.url.replace(/^https?:\/\//, '');
             html += `
-        <div class="sys-standalone">
+        <div class="sys-standalone" style="cursor:pointer"
+             onclick="openDetail('${esc(c.target.url)}','${esc(name)}')">
             <span class="dot ${dotClass(c.status)}"></span>
             <span class="sys-ep-name">${esc(name)}</span>
             ${statusLabel(c)}
@@ -292,6 +294,252 @@ async function refresh() {
     buildMap(nodes);
     renderIncidents(incidents);
 }
+
+// ── DETAIL PANEL ──────────────────────────────────────────
+
+function targetParam(url) {
+    // Strip protocol so the Go handler can reconstruct it
+    return encodeURIComponent(url.replace(/^https?:\/\//, ''));
+}
+
+function fmtTime(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleTimeString('en-GB', { hour12: false });
+}
+
+function fmtDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short' })
+           + ' ' + d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', hour12:false });
+}
+
+// Compute stats from history array
+function analyzeHistory(history) {
+    const valid = history.filter(h => h.tcp_success && h.total_ms > 0);
+    const total = history.length;
+    const failed = history.filter(h => !h.tcp_success).length;
+
+    if (valid.length === 0) return { avg:0, p50:0, p95:0, p99:0, uptime:'0.0', total, failed };
+
+    const sorted = [...valid.map(h => h.total_ms)].sort((a,b) => a-b);
+    const avg  = Math.round(sorted.reduce((a,b) => a+b, 0) / sorted.length);
+    const p50  = sorted[Math.floor(sorted.length * 0.50)] || 0;
+    const p95  = sorted[Math.floor(sorted.length * 0.95)] || 0;
+    const p99  = sorted[Math.floor(sorted.length * 0.99)] || 0;
+    const uptime = ((total - failed) / total * 100).toFixed(1);
+
+    return { avg, p50, p95, p99, uptime, total, failed };
+}
+
+// Build SVG sparkline from history
+function sparkline(history) {
+    const pts = history
+        .slice(-120)
+        .map(h => ({ ms: h.tcp_success && h.total_ms > 0 ? h.total_ms : null, ok: h.tcp_success, t: h.time }));
+
+    const values = pts.filter(p => p.ms !== null).map(p => p.ms);
+    if (values.length < 2) return '<div style="color:var(--muted);font-size:12px;padding:8px 0">Not enough data</div>';
+
+    const W = 440, H = 64, pad = 4;
+    const maxMs = Math.max(...values);
+    const minMs = Math.min(...values);
+    const range = (maxMs - minMs) || 1;
+
+    const xOf = i => pad + (i / (pts.length - 1)) * (W - pad * 2);
+    const yOf = ms => pad + (H - pad * 2) - ((ms - minMs) / range) * (H - pad * 2);
+
+    // Build the line through non-null points only
+    let path = '';
+    let area = '';
+    let first = true;
+    pts.forEach((p, i) => {
+        if (p.ms === null) { first = true; return; }
+        const x = xOf(i).toFixed(1), y = yOf(p.ms).toFixed(1);
+        path += first ? `M${x} ${y}` : ` L${x} ${y}`;
+        first = false;
+    });
+
+    // Closed area path for gradient fill
+    const validIdx = pts.map((p,i) => p.ms !== null ? i : null).filter(i => i !== null);
+    if (validIdx.length > 1) {
+        const fx = xOf(validIdx[0]).toFixed(1), fy = yOf(pts[validIdx[0]].ms).toFixed(1);
+        const lx = xOf(validIdx[validIdx.length-1]).toFixed(1);
+        area = path + ` L${lx} ${(pad+H-pad*2).toFixed(1)} L${fx} ${(pad+H-pad*2).toFixed(1)} Z`;
+    }
+
+    // Failed probe markers
+    const failDots = pts
+        .map((p, i) => (!p.ok ? `<circle cx="${xOf(i).toFixed(1)}" cy="${(H-3).toFixed(1)}" r="2.5" fill="var(--red)" opacity="0.8"/>` : ''))
+        .join('');
+
+    // Y-axis labels
+    const yLabels = `
+        <text x="${W-2}" y="${pad+8}" text-anchor="end" font-size="9" fill="var(--muted)" font-family="var(--font)">${maxMs}ms</text>
+        <text x="${W-2}" y="${H-2}" text-anchor="end" font-size="9" fill="var(--muted)" font-family="var(--font)">${minMs}ms</text>`;
+
+    return `
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block">
+        <defs>
+            <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stop-color="var(--cyan)" stop-opacity="0.18"/>
+                <stop offset="100%" stop-color="var(--cyan)" stop-opacity="0"/>
+            </linearGradient>
+        </defs>
+        ${area ? `<path d="${area}" fill="url(#sg)"/>` : ''}
+        <path d="${path}" fill="none" stroke="var(--cyan)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+        ${failDots}
+        ${yLabels}
+    </svg>`;
+}
+
+async function openDetail(targetUrl, displayName) {
+    const panel  = document.getElementById('detailPanel');
+    const overlay = document.getElementById('overlay');
+    const body   = document.getElementById('dpBody');
+
+    // Set header immediately
+    document.getElementById('dpName').textContent = displayName;
+    document.getElementById('dpUrl').textContent  = targetUrl;
+    document.getElementById('dpStatusRow').innerHTML = '';
+    body.innerHTML = '<div class="dp-loading">Loading…</div>';
+
+    panel.classList.add('open');
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+
+    // Fetch status detail + 24h history in parallel
+    const param = targetParam(targetUrl);
+    const [detail, history] = await Promise.all([
+        fetchJSON(`${API}/status/${param}`),
+        fetchJSON(`${API}/history/${param}?hours=24`),
+    ]);
+
+    // Status row in header
+    const statusRow = document.getElementById('dpStatusRow');
+    if (detail) {
+        const s = detail.status || 'UNKNOWN';
+        const color = s === 'HEALTHY' ? 'var(--green)' : 'var(--purple)';
+        const lastChk = detail.last_check ? fmtDate(detail.last_check) : '';
+        statusRow.innerHTML = `
+            <span class="dot ${dotClass(s)}"></span>
+            <span style="font-size:12px;font-weight:600;color:${color}">${s}</span>
+            ${lastChk ? `<span style="font-size:11px;color:var(--muted)">· last checked ${lastChk}</span>` : ''}`;
+    }
+
+    // Build body
+    const hist = Array.isArray(history) ? history : [];
+    const stats = analyzeHistory(hist);
+    let html = '';
+
+    // ── Active incident alert ──
+    if (detail?.active_incident) {
+        const inc = detail.active_incident;
+        html += `
+        <div class="dp-incident">
+            ⚠ Active incident since ${fmtDate(inc.started_at)} &nbsp;·&nbsp;
+            Peak: ${inc.peak_status} (${Math.round(inc.peak_confidence*100)}% confidence)
+        </div>`;
+    }
+
+    // ── 24h Stats ──
+    html += `
+    <div>
+        <div class="dp-section-title">Last 24 Hours — ${stats.total} probes</div>
+        <div class="dp-stats">
+            <div class="dp-stat">
+                <span class="dp-stat-label">Uptime</span>
+                <span class="dp-stat-value ${parseFloat(stats.uptime) === 100 ? 'ok' : 'warn'}">${stats.uptime}%</span>
+            </div>
+            <div class="dp-stat">
+                <span class="dp-stat-label">Avg</span>
+                <span class="dp-stat-value cyan">${stats.avg ? stats.avg+'ms' : '—'}</span>
+            </div>
+            <div class="dp-stat">
+                <span class="dp-stat-label">P95</span>
+                <span class="dp-stat-value cyan">${stats.p95 ? stats.p95+'ms' : '—'}</span>
+            </div>
+            <div class="dp-stat">
+                <span class="dp-stat-label">Failures</span>
+                <span class="dp-stat-value ${stats.failed > 0 ? 'warn' : 'ok'}">${stats.failed}</span>
+            </div>
+        </div>
+    </div>`;
+
+    // ── Response time chart ──
+    if (hist.length > 0) {
+        const oldest = hist[0]?.time ? fmtDate(hist[0].time) : '';
+        const newest = hist[hist.length-1]?.time ? fmtDate(hist[hist.length-1].time) : '';
+        html += `
+        <div>
+            <div class="dp-section-title">Response Time (ms)</div>
+            <div class="dp-chart">
+                ${sparkline(hist)}
+                <div class="dp-chart-labels">
+                    <span>${oldest}</span>
+                    <span style="color:var(--red);font-size:9px">● failed probe</span>
+                    <span>${newest}</span>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    // ── Per-node breakdown ──
+    if (detail?.node_breakdown?.length > 0) {
+        html += `<div><div class="dp-section-title">Per-Node Probes</div><div class="dp-nodes">`;
+        detail.node_breakdown.forEach(n => {
+            const ok = n.tcp_success;
+            const ms = n.total_ms > 0 ? `${n.total_ms}ms` : '—';
+            const http = n.http_status > 0 ? `HTTP ${n.http_status}` : (n.error || 'TCP fail');
+            html += `
+            <div class="dp-node-row">
+                <span class="dot ${ok ? 'healthy' : 'outage'}"></span>
+                <span class="dp-node-name">${esc(n.node_id)}</span>
+                <span class="dp-node-region">${esc(n.region || '')}</span>
+                <span class="dp-node-ms">${ms}</span>
+                <span class="dp-node-http" style="color:${n.http_status===200?'var(--green)':'var(--muted)'}">${esc(http)}</span>
+            </div>`;
+        });
+        html += `</div></div>`;
+    }
+
+    // ── Recent probe log ──
+    const recent = hist.slice(-20).reverse();
+    if (recent.length > 0) {
+        html += `<div><div class="dp-section-title">Recent Probes</div><div class="dp-probes">`;
+        recent.forEach(p => {
+            const ok = p.tcp_success;
+            const color = ok ? 'var(--green)' : 'var(--red)';
+            const label = ok ? (p.http_status ? `HTTP ${p.http_status}` : 'TCP OK') : (p.error_type || 'FAIL');
+            const ms = p.total_ms > 0 ? `${p.total_ms}ms` : '—';
+            html += `
+            <div class="dp-probe-row">
+                <span class="dp-probe-time">${fmtTime(p.time)}</span>
+                <span class="dp-probe-node">${esc(p.node_id || '')}</span>
+                <span class="dp-probe-ms">${ms}</span>
+                <span class="dp-probe-status" style="color:${color}">${esc(label)}</span>
+            </div>`;
+        });
+        html += `</div></div>`;
+    }
+
+    if (!html) {
+        html = '<div class="dp-loading">No data available for this endpoint.</div>';
+    }
+
+    body.innerHTML = html;
+}
+
+function closeDetail() {
+    document.getElementById('detailPanel').classList.remove('open');
+    document.getElementById('overlay').classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+// Close on Escape key
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDetail(); });
+
+// ── MAIN LOOP ──────────────────────────────────────────────
 
 buildMap(null);
 refresh();
