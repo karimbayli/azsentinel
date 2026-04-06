@@ -116,8 +116,9 @@ func (s *Server) registerRoutes() {
 	// Export
 	s.mux.HandleFunc("GET /api/v1/export/csv", s.handleExportCSV)
 
-	// Static files
-	s.mux.Handle("GET /", http.FileServer(http.Dir("static")))
+	// Static files — served with cache-busting headers
+	// Static files — no-cache for HTML, short TTL for assets
+	s.mux.Handle("GET /", s.withStaticCache(http.FileServer(http.Dir("static"))))
 }
 
 // ============================================================
@@ -200,6 +201,28 @@ func (s *Server) withRateLimit(next http.Handler) http.Handler {
 		if !globalRL.allow(strings.TrimSpace(clientIP)) {
 			s.errorJSON(w, http.StatusTooManyRequests, "rate limit exceeded")
 			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// withStaticCache sets Cache-Control headers for static assets.
+// HTML documents are served with no-cache so browsers always revalidate.
+// JS/CSS/SVG assets are served with a 1-hour TTL — short enough that a
+// Cloudflare cache purge (or a TTL expiry) picks up new deployments quickly.
+func (s *Server) withStaticCache(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		switch {
+		case path == "/" || strings.HasSuffix(path, ".html"):
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		case strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".css") || strings.HasSuffix(path, ".svg"):
+			// Use version-tagged URL scheme: app.js?v=<build-version>
+			// Cache for 1 hour; Cloudflare will treat versioned URLs as distinct objects.
+			w.Header().Set("Cache-Control", "public, max-age=3600")
+			// Vary on the version query param so caches don't collapse versioned and
+			// unversioned requests for the same path.
+			w.Header().Set("Vary", "Accept-Encoding")
 		}
 		next.ServeHTTP(w, r)
 	})

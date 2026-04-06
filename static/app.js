@@ -136,13 +136,12 @@ function renderKPIs(statuses, bgpEvents, incidents) {
     // Filter out anchors
     const real = statuses.filter(s => s.target.category !== 'ANCHOR');
 
-    // SLA Hero Calculation
-    let totalConf = 0;
-    real.forEach(s => totalConf += s.confidence);
-    const avgConf = real.length > 0 ? (totalConf / real.length) : 0;
+    // Uptime score: % of endpoints currently HEALTHY
+    const healthyCount = real.filter(s => s.status === 'HEALTHY').length;
+    const uptimePct = real.length > 0 ? (healthyCount / real.length * 100) : 0;
 
     const kpiConf = $('#kpiConfidence');
-    if (kpiConf) kpiConf.textContent = `${(avgConf * 100).toFixed(2)}%`;
+    if (kpiConf) kpiConf.textContent = `${uptimePct.toFixed(2)}%`;
 
     // Global Top Bar
     let globalStatus = "STABLE";
