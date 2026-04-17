@@ -672,46 +672,24 @@ func (db *DB) StreamExportCSV(ctx context.Context, w io.Writer) error {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	since := time.Now().UTC().Add(-7 * 24 * time.Hour)
-	rows, err := db.pool.Query(ctx, `
-		SELECT time, node_id, target_url, target_category, tcp_dial_ms, tcp_success,
-		       tls_handshake_ms, http_status, ttfb_ms, total_ms, node_reliable,
+	since := time.Now().UTC().Add(-7 * 24 * time.Hour).Format(time.RFC3339)
+	query := fmt.Sprintf(`COPY (
+		SELECT to_char(time, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), node_id, target_url, target_category, tcp_dial_ms,
+		       CASE WHEN tcp_success THEN 'true' ELSE 'false' END,
+		       tls_handshake_ms, http_status, ttfb_ms, total_ms,
+		       CASE WHEN node_reliable THEN 'true' ELSE 'false' END,
 		       error_type, error_detail
 		FROM probe_results
-		WHERE time >= $1
+		WHERE time >= '%s'
 		ORDER BY time DESC
-		LIMIT 100000`, since)
-	if err != nil {
-		return fmt.Errorf("query export csv: %w", err)
-	}
-	defer rows.Close()
+		LIMIT 100000
+	) TO STDOUT WITH (FORMAT csv)`, since)
 
-	for rows.Next() {
-		var (
-			t              time.Time
-			nodeID         string
-			targetURL      string
-			targetCategory string
-			tcpDialMs      int
-			tcpSuccess     bool
-			tlsHandshakeMs int
-			httpStatus     int
-			ttfbMs         int
-			totalMs        int
-			nodeReliable   bool
-			errorType      string
-			errorDetail    string
-		)
-		if err := rows.Scan(&t, &nodeID, &targetURL, &targetCategory,
-			&tcpDialMs, &tcpSuccess, &tlsHandshakeMs,
-			&httpStatus, &ttfbMs, &totalMs, &nodeReliable,
-			&errorType, &errorDetail); err != nil {
-			return fmt.Errorf("scan export: %w", err)
+	return db.pool.AcquireFunc(ctx, func(c *pgxpool.Conn) error {
+		_, err := c.Conn().PgConn().CopyTo(ctx, w, query)
+		if err != nil {
+			return fmt.Errorf("query export csv: %w", err)
 		}
-		fmt.Fprintf(w, "%s,%s,%s,%s,%d,%t,%d,%d,%d,%d,%t,%s,%s\n",
-			t.Format(time.RFC3339), nodeID, targetURL, targetCategory,
-			tcpDialMs, tcpSuccess, tlsHandshakeMs, httpStatus,
-			ttfbMs, totalMs, nodeReliable, errorType, errorDetail)
-	}
-	return rows.Err()
+		return nil
+	})
 }
