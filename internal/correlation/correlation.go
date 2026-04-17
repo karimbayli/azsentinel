@@ -128,6 +128,14 @@ func (e *Engine) assess(ctx context.Context) {
 		return
 	}
 
+	// Fetch all open incidents once to avoid N+1 queries in the loop
+	openIncidents, err := e.db.GetAllOpenIncidents(assessCtx)
+	if err != nil {
+		e.logger.Error("failed to get open incidents for correlation", zap.Error(err))
+		// Continue anyway, we can fall back or handle nil map in manageIncident
+		openIncidents = make(map[string]*models.Incident)
+	}
+
 	for _, target := range targets {
 		// NEVER include ANCHOR targets in correlation
 		if target.Category == "ANCHOR" {
@@ -164,7 +172,7 @@ func (e *Engine) assess(ctx context.Context) {
 				e.onStateChange(target, prevStatus, result.Status, *result)
 
 				// Manage incidents
-				e.manageIncident(assessCtx, target, prevStatus, result)
+				e.manageIncident(assessCtx, target, prevStatus, result, openIncidents)
 			}
 		}
 	}
@@ -289,7 +297,7 @@ func (e *Engine) assessTarget(ctx context.Context, target models.Target, prevSta
 }
 
 // manageIncident creates or resolves incidents based on state changes.
-func (e *Engine) manageIncident(ctx context.Context, target models.Target, prevStatus string, result *models.CorrelationResult) {
+func (e *Engine) manageIncident(ctx context.Context, target models.Target, prevStatus string, result *models.CorrelationResult, openIncidents map[string]*models.Incident) {
 	if result.Status != "HEALTHY" && prevStatus == "HEALTHY" {
 		// New incident
 		inc := models.Incident{
@@ -305,12 +313,8 @@ func (e *Engine) manageIncident(ctx context.Context, target models.Target, prevS
 		}
 	} else if result.Status == "HEALTHY" && prevStatus != "HEALTHY" {
 		// Resolve incident
-		openInc, err := e.db.GetOpenIncident(ctx, target.URL)
-		if err != nil {
-			e.logger.Error("failed to get open incident", zap.Error(err))
-			return
-		}
-		if openInc != nil {
+		openInc, ok := openIncidents[target.URL]
+		if ok && openInc != nil {
 			resolvedAt := result.Time
 			openInc.ResolvedAt = &resolvedAt
 			if err := e.db.UpsertIncident(ctx, *openInc); err != nil {
