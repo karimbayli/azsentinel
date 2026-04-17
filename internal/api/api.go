@@ -340,32 +340,42 @@ func (s *Server) handleIngestProbeBatch(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// FIX A-1: Anti-replay — validate timestamp freshness
-	if batch.SentAt > 0 {
-		batchTime := time.Unix(batch.SentAt, 0)
-		skew := time.Since(batchTime)
-		if skew < -maxClockSkew || skew > maxClockSkew {
-			s.logger.Warn("rejected stale/future batch",
-				zap.String("node_id", batch.NodeID),
-				zap.Duration("skew", skew))
-			s.errorJSON(w, http.StatusBadRequest, "batch timestamp too old or in future")
-			return
-		}
+	if batch.SentAt <= 0 {
+		s.logger.Warn("rejected batch without timestamp",
+			zap.String("node_id", batch.NodeID))
+		s.errorJSON(w, http.StatusBadRequest, "missing batch timestamp")
+		return
+	}
+
+	batchTime := time.Unix(batch.SentAt, 0)
+	skew := time.Since(batchTime)
+	if skew < -maxClockSkew || skew > maxClockSkew {
+		s.logger.Warn("rejected stale/future batch",
+			zap.String("node_id", batch.NodeID),
+			zap.Duration("skew", skew))
+		s.errorJSON(w, http.StatusBadRequest, "batch timestamp too old or in future")
+		return
 	}
 
 	// FIX A-1: Anti-replay — check nonce uniqueness
-	if batch.Nonce != "" {
-		s.nonceMu.Lock()
-		if _, exists := s.nonceCache[batch.Nonce]; exists {
-			s.nonceMu.Unlock()
-			s.logger.Warn("rejected replayed batch (duplicate nonce)",
-				zap.String("node_id", batch.NodeID),
-				zap.String("nonce", batch.Nonce))
-			s.errorJSON(w, http.StatusConflict, "duplicate nonce (replay detected)")
-			return
-		}
-		s.nonceCache[batch.Nonce] = time.Now().Add(2 * maxClockSkew)
-		s.nonceMu.Unlock()
+	if batch.Nonce == "" {
+		s.logger.Warn("rejected batch without nonce",
+			zap.String("node_id", batch.NodeID))
+		s.errorJSON(w, http.StatusBadRequest, "missing batch nonce")
+		return
 	}
+
+	s.nonceMu.Lock()
+	if _, exists := s.nonceCache[batch.Nonce]; exists {
+		s.nonceMu.Unlock()
+		s.logger.Warn("rejected replayed batch (duplicate nonce)",
+			zap.String("node_id", batch.NodeID),
+			zap.String("nonce", batch.Nonce))
+		s.errorJSON(w, http.StatusConflict, "duplicate nonce (replay detected)")
+		return
+	}
+	s.nonceCache[batch.Nonce] = time.Now().Add(2 * maxClockSkew)
+	s.nonceMu.Unlock()
 
 	// FIX A-5: Validate individual probe timestamps
 	now := time.Now().UTC()
