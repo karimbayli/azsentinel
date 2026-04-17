@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/karimbayli/sentinel-v2/internal/models"
-	"gopkg.in/yaml.v3"
+	yaml "gopkg.in/yaml.v3"
 )
 
 // expandEnv extends os.ExpandEnv to support bash-style default values like ${VAR:-default}.
