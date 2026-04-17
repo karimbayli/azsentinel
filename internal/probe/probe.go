@@ -260,7 +260,16 @@ func (p *Prober) measureTLS(ctx context.Context, host, port string, conn net.Con
 func (p *Prober) measureHTTP(ctx context.Context, targetURL string, result *models.ProbeResult) {
 	httpStart := time.Now()
 	var ttfb time.Duration
+	var httpDnsStart time.Time
 	trace := &httptrace.ClientTrace{
+		DNSStart: func(info httptrace.DNSStartInfo) {
+			httpDnsStart = time.Now()
+		},
+		DNSDone: func(info httptrace.DNSDoneInfo) {
+			if !httpDnsStart.IsZero() {
+				result.DNSResolveMs += int(time.Since(httpDnsStart).Milliseconds())
+			}
+		},
 		GotFirstResponseByte: func() {
 			ttfb = time.Since(httpStart)
 		},
