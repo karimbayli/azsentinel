@@ -239,7 +239,7 @@ func flushLoop(ctx context.Context, cfg *config.ProbeAgentConfig, bufferQueue *b
 					consecutiveFailures++
 
 					// FIX H-7: Exponential backoff with context-aware wait
-					backoff := time.Duration(math.Min(float64(consecutiveFailures)*5, 120)) * time.Second
+					backoff := time.Duration(math.Min(math.Pow(2, float64(consecutiveFailures)), 120)) * time.Second
 					logger.Warn("flush failed, will retry with backoff",
 						zap.Error(err),
 						zap.Duration("backoff", backoff),
