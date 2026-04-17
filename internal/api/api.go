@@ -355,7 +355,7 @@ func (s *Server) handleIngestProbeBatch(w http.ResponseWriter, r *http.Request) 
 	// FIX A-1: Anti-replay — check nonce uniqueness
 	if batch.Nonce != "" {
 		s.nonceMu.Lock()
-		if _, exists := s.nonceCache[batch.Nonce]; exists {
+		if expiry, exists := s.nonceCache[batch.Nonce]; exists && time.Now().Before(expiry) {
 			s.nonceMu.Unlock()
 			s.logger.Warn("rejected replayed batch (duplicate nonce)",
 				zap.String("node_id", batch.NodeID),
