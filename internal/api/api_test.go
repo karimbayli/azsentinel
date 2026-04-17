@@ -1,7 +1,15 @@
 package api
 
 import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
+
+	"github.com/karimbayli/sentinel-v2/internal/models"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestComputeAndValidateHMAC(t *testing.T) {
@@ -45,5 +53,80 @@ func TestComputeHMACConsistency(t *testing.T) {
 
 	if sig1 != sig2 {
 		t.Errorf("ComputeHMAC should be deterministic: %s != %s", sig1, sig2)
+	}
+}
+
+func TestAntiReplayNonce(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	// Create a Server without a real DB. We will stop testing logic before hitting the DB.
+	nodes := []models.Node{
+		{NodeID: "test-node", Enabled: true},
+	}
+	// Note: We use nil DB, which would panic if reached. But our test cases are designed
+	// to trigger HTTP errors before DB insertion, or we will just use a minimal test.
+	s := New(nil, "secret", nodes, nil, logger)
+
+	// Mock nonce that has not expired
+	s.nonceCache["valid-nonce"] = time.Now().Add(10 * time.Minute)
+	// Mock nonce that has already expired
+	s.nonceCache["expired-nonce"] = time.Now().Add(-10 * time.Minute)
+
+	tests := []struct {
+		name       string
+		nonce      string
+		wantStatus int
+	}{
+		{
+			name:       "valid nonce - already in cache and not expired",
+			nonce:      "valid-nonce",
+			wantStatus: http.StatusConflict,
+		},
+		{
+			name:       "expired nonce - in cache but expired",
+			nonce:      "expired-nonce",
+			wantStatus: 0, // In this test, it will bypass nonce check and then fail later or panic. We will catch panic.
+		},
+		{
+			name:       "new nonce - not in cache",
+			nonce:      "new-nonce",
+			wantStatus: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			batch := models.ProbeBatch{
+				NodeID:    "test-node",
+				SentAt:    time.Now().Unix(),
+				Nonce:     tt.nonce,
+				Results:   []models.ProbeResult{{NodeID: "test-node", TargetURL: "http://example.com", Time: time.Now()}},
+			}
+
+			body, _ := json.Marshal(batch)
+
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/ingest/probe-batch", bytes.NewReader(body))
+			req.Header.Set("X-Sentinel-Node", "test-node")
+
+			sig := ComputeHMAC(body, "secret")
+			req.Header.Set("X-Sentinel-Signature", sig)
+
+			rr := httptest.NewRecorder()
+
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						// Expected panic from nil db
+					}
+				}()
+				s.mux.ServeHTTP(rr, req)
+			}()
+
+			if tt.wantStatus != 0 && rr.Code != tt.wantStatus {
+				t.Errorf("Expected status %d, got %d", tt.wantStatus, rr.Code)
+			}
+			if tt.wantStatus == 0 && rr.Code == http.StatusConflict {
+				t.Errorf("Expected not to get StatusConflict (409), but got it")
+			}
+		})
 	}
 }
