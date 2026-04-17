@@ -15,12 +15,12 @@ import (
 	"github.com/karimbayli/sentinel-v2/internal/bgp"
 	"github.com/karimbayli/sentinel-v2/internal/config"
 	"github.com/karimbayli/sentinel-v2/internal/correlation"
+	"github.com/karimbayli/sentinel-v2/internal/logger"
 	"github.com/karimbayli/sentinel-v2/internal/models"
 	"github.com/karimbayli/sentinel-v2/internal/probe"
 	"github.com/karimbayli/sentinel-v2/internal/social"
 	"github.com/karimbayli/sentinel-v2/internal/storage"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 const version = "1.0.0"
@@ -47,7 +47,7 @@ func main() {
 	}
 
 	// Initialize logger
-	logger := initLogger(cfg.LogLevel)
+	logger := logger.New(cfg.LogLevel)
 	defer logger.Sync()
 
 	logger.Info("starting sentinel v2 central server",
@@ -263,45 +263,4 @@ func runLocalProbeAndReport(ctx context.Context, prober *probe.Prober, db *stora
 	}
 
 	logger.Debug("local probe cycle complete", zap.Int("results", len(results)))
-}
-
-func initLogger(level string) *zap.Logger {
-	var lvl zapcore.Level
-	switch level {
-	case "debug":
-		lvl = zapcore.DebugLevel
-	case "warn":
-		lvl = zapcore.WarnLevel
-	case "error":
-		lvl = zapcore.ErrorLevel
-	default:
-		lvl = zapcore.InfoLevel
-	}
-
-	cfg := zap.Config{
-		Level:            zap.NewAtomicLevelAt(lvl),
-		Encoding:         "json",
-		OutputPaths:      []string{"stdout"},
-		ErrorOutputPaths: []string{"stderr"},
-		EncoderConfig: zapcore.EncoderConfig{
-			TimeKey:        "ts",
-			LevelKey:       "level",
-			NameKey:        "logger",
-			CallerKey:      "caller",
-			MessageKey:     "msg",
-			StacktraceKey:  "stacktrace",
-			LineEnding:     zapcore.DefaultLineEnding,
-			EncodeLevel:    zapcore.LowercaseLevelEncoder,
-			EncodeTime:     zapcore.ISO8601TimeEncoder,
-			EncodeDuration: zapcore.SecondsDurationEncoder,
-			EncodeCaller:   zapcore.ShortCallerEncoder,
-		},
-	}
-
-	logger, err := cfg.Build()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to init logger: %v\n", err)
-		os.Exit(1)
-	}
-	return logger
 }

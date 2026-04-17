@@ -18,12 +18,12 @@ import (
 	"github.com/karimbayli/sentinel-v2/internal/api"
 	"github.com/karimbayli/sentinel-v2/internal/buffer"
 	"github.com/karimbayli/sentinel-v2/internal/config"
+	"github.com/karimbayli/sentinel-v2/internal/logger"
 	"github.com/karimbayli/sentinel-v2/internal/models"
 	"github.com/karimbayli/sentinel-v2/internal/probe"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 
 	"encoding/json"
 )
@@ -55,7 +55,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger := initLogger(cfg.LogLevel)
+	logger := logger.New(cfg.LogLevel)
 	defer logger.Sync()
 
 	logger.Info("starting sentinel v2 probe agent",
@@ -268,45 +268,4 @@ func flushLoop(ctx context.Context, cfg *config.ProbeAgentConfig, bufferQueue *b
 			}
 		}
 	}
-}
-
-func initLogger(level string) *zap.Logger {
-	var lvl zapcore.Level
-	switch level {
-	case "debug":
-		lvl = zapcore.DebugLevel
-	case "warn":
-		lvl = zapcore.WarnLevel
-	case "error":
-		lvl = zapcore.ErrorLevel
-	default:
-		lvl = zapcore.InfoLevel
-	}
-
-	cfg := zap.Config{
-		Level:            zap.NewAtomicLevelAt(lvl),
-		Encoding:         "json",
-		OutputPaths:      []string{"stdout"},
-		ErrorOutputPaths: []string{"stderr"},
-		EncoderConfig: zapcore.EncoderConfig{
-			TimeKey:        "ts",
-			LevelKey:       "level",
-			NameKey:        "logger",
-			CallerKey:      "caller",
-			MessageKey:     "msg",
-			StacktraceKey:  "stacktrace",
-			LineEnding:     zapcore.DefaultLineEnding,
-			EncodeLevel:    zapcore.LowercaseLevelEncoder,
-			EncodeTime:     zapcore.ISO8601TimeEncoder,
-			EncodeDuration: zapcore.SecondsDurationEncoder,
-			EncodeCaller:   zapcore.ShortCallerEncoder,
-		},
-	}
-
-	logger, err := cfg.Build()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to init logger: %v\n", err)
-		os.Exit(1)
-	}
-	return logger
 }
