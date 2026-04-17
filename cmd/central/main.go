@@ -62,126 +62,26 @@ func main() {
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
 	// Connect to TimescaleDB
-	db, err := storage.New(ctx, cfg.Database.DSN(), logger)
-	if err != nil {
-		logger.Fatal("failed to connect to database", zap.Error(err))
-	}
+	db := setupDatabase(ctx, cfg, logger)
 	defer db.Close()
-	logger.Info("connected to TimescaleDB")
-
-	// Sync targets and nodes from config
-	if err := db.SyncTargets(ctx, cfg.Targets); err != nil {
-		logger.Fatal("failed to sync targets", zap.Error(err))
-	}
-	if err := db.SyncNodes(ctx, cfg.Nodes); err != nil {
-		logger.Fatal("failed to sync nodes", zap.Error(err))
-	}
-	logger.Info("synced config to database",
-		zap.Int("targets", len(cfg.Targets)),
-		zap.Int("nodes", len(cfg.Nodes)))
 
 	// Start BGP Monitor
-	var bgpMonitor *bgp.Monitor
-	if cfg.BGP.Enabled {
-		bgpMonitor = bgp.New(cfg.BGP.WSURL, cfg.BGP.Collectors, cfg.BGP.WatchASNs, db, logger)
-		go bgpMonitor.Run(ctx)
-		logger.Info("bgp monitor started", zap.Strings("collectors", cfg.BGP.Collectors))
-	}
+	bgpMonitor := startBGPMonitor(ctx, cfg, db, logger)
 
 	// Start Social Monitor
-	var socialMonitor *social.Monitor
-	if cfg.Social.Enabled {
-		socialMonitor = social.New(
-			cfg.Social.BotToken,
-			cfg.Social.ChannelIDs,
-			cfg.Social.WindowMinutes,
-			cfg.Social.BaselineDays,
-			cfg.Social.BotFilterRate,
-			db, logger,
-		)
-		go socialMonitor.Run(ctx)
-		logger.Info("social monitor started")
-	}
+	socialMonitor := startSocialMonitor(ctx, cfg, db, logger)
 
 	// Start Alert Dispatcher
-	var alertDispatcher *alert.Dispatcher
-	if cfg.Alert.Enabled && !cfg.Calibration {
-		alertDispatcher = alert.New(
-			cfg.Alert.BotToken,
-			cfg.Alert.ChatID,
-			cfg.Alert.DedupMinutes,
-			logger,
-		)
-		logger.Info("alert dispatcher initialized")
-	}
+	alertDispatcher := setupAlertDispatcher(cfg, logger)
 
 	// Start Correlation Engine
-	engine := correlation.New(db, bgpMonitor, socialMonitor, correlation.Config{
-		IntervalSeconds:  cfg.Correlation.IntervalSeconds,
-		WindowMinutes:    cfg.Correlation.WindowMinutes,
-		WeightNode:       cfg.Correlation.WeightNode,
-		WeightBGP:        cfg.Correlation.WeightBGP,
-		WeightSocial:     cfg.Correlation.WeightSocial,
-		NodeFailRatio:    cfg.Correlation.NodeFailRatio,
-		SocialSpikeX:     cfg.Correlation.SocialSpikeX,
-		MinReliableNodes: cfg.Correlation.MinReliableNodes,
-		WatchASNs:        cfg.BGP.WatchASNs,
-		Calibration:      cfg.Calibration,
-	}, logger)
+	startCorrelationEngine(ctx, cfg, db, bgpMonitor, socialMonitor, alertDispatcher, logger)
 
-	if alertDispatcher != nil {
-		engine.OnStateChange(func(target models.Target, prev, curr string, result models.CorrelationResult) {
-			// NEVER alert on ANCHOR targets
-			if target.Category == "ANCHOR" {
-				return
-			}
-			alertDispatcher.SendAlert(ctx, target, prev, curr, result)
-		})
-	}
-
-	go engine.Run(ctx)
-	logger.Info("correlation engine started",
-		zap.Int("interval_sec", cfg.Correlation.IntervalSeconds),
-		zap.Int("window_min", cfg.Correlation.WindowMinutes))
-
-	// Start Local Probe Agent (node-eu-central)
-	localNodeID := "node-eu-central"
-	for _, n := range cfg.Nodes {
-		if n.Country == "AZ" {
-			localNodeID = n.NodeID
-			break
-		}
-	}
-
-	prober := probe.New(
-		localNodeID,
-		"eu-frankfurt",
-		cfg.Targets,
-		cfg.Probe.TCPTimeout,
-		cfg.Probe.HTTPTimeout,
-		logger,
-	)
-
-	go runLocalProber(ctx, prober, db, cfg.Probe.IntervalSeconds, localNodeID, logger)
+	// Start Local Probe Agent
+	startLocalProberAgent(ctx, cfg, db, logger)
 
 	// Start REST API
-	apiServer := api.New(db, cfg.Server.HMACSecret, cfg.Nodes, cfg.Targets, logger)
-	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
-
-	httpServer := &http.Server{
-		Addr:         addr,
-		Handler:      apiServer.Handler(),
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
-	}
-
-	go func() {
-		logger.Info("http server starting", zap.String("addr", addr))
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("http server error", zap.Error(err))
-		}
-	}()
+	httpServer := startHTTPServer(cfg, db, logger)
 
 	if cfg.Calibration {
 		logger.Warn("⚠️  CALIBRATION MODE ACTIVE — no alerts or incidents will be generated")
@@ -304,4 +204,137 @@ func initLogger(level string) *zap.Logger {
 		os.Exit(1)
 	}
 	return logger
+}
+
+func setupDatabase(ctx context.Context, cfg *config.CentralConfig, logger *zap.Logger) *storage.DB {
+	db, err := storage.New(ctx, cfg.Database.DSN(), logger)
+	if err != nil {
+		logger.Fatal("failed to connect to database", zap.Error(err))
+	}
+	logger.Info("connected to TimescaleDB")
+
+	if err := db.SyncTargets(ctx, cfg.Targets); err != nil {
+		logger.Fatal("failed to sync targets", zap.Error(err))
+	}
+	if err := db.SyncNodes(ctx, cfg.Nodes); err != nil {
+		logger.Fatal("failed to sync nodes", zap.Error(err))
+	}
+	logger.Info("synced config to database",
+		zap.Int("targets", len(cfg.Targets)),
+		zap.Int("nodes", len(cfg.Nodes)))
+	return db
+}
+
+func startBGPMonitor(ctx context.Context, cfg *config.CentralConfig, db *storage.DB, logger *zap.Logger) *bgp.Monitor {
+	var bgpMonitor *bgp.Monitor
+	if cfg.BGP.Enabled {
+		bgpMonitor = bgp.New(cfg.BGP.WSURL, cfg.BGP.Collectors, cfg.BGP.WatchASNs, db, logger)
+		go bgpMonitor.Run(ctx)
+		logger.Info("bgp monitor started", zap.Strings("collectors", cfg.BGP.Collectors))
+	}
+	return bgpMonitor
+}
+
+func startSocialMonitor(ctx context.Context, cfg *config.CentralConfig, db *storage.DB, logger *zap.Logger) *social.Monitor {
+	var socialMonitor *social.Monitor
+	if cfg.Social.Enabled {
+		socialMonitor = social.New(
+			cfg.Social.BotToken,
+			cfg.Social.ChannelIDs,
+			cfg.Social.WindowMinutes,
+			cfg.Social.BaselineDays,
+			cfg.Social.BotFilterRate,
+			db, logger,
+		)
+		go socialMonitor.Run(ctx)
+		logger.Info("social monitor started")
+	}
+	return socialMonitor
+}
+
+func setupAlertDispatcher(cfg *config.CentralConfig, logger *zap.Logger) *alert.Dispatcher {
+	var alertDispatcher *alert.Dispatcher
+	if cfg.Alert.Enabled && !cfg.Calibration {
+		alertDispatcher = alert.New(
+			cfg.Alert.BotToken,
+			cfg.Alert.ChatID,
+			cfg.Alert.DedupMinutes,
+			logger,
+		)
+		logger.Info("alert dispatcher initialized")
+	}
+	return alertDispatcher
+}
+
+func startCorrelationEngine(ctx context.Context, cfg *config.CentralConfig, db *storage.DB, bgpMonitor *bgp.Monitor, socialMonitor *social.Monitor, alertDispatcher *alert.Dispatcher, logger *zap.Logger) {
+	engine := correlation.New(db, bgpMonitor, socialMonitor, correlation.Config{
+		IntervalSeconds:  cfg.Correlation.IntervalSeconds,
+		WindowMinutes:    cfg.Correlation.WindowMinutes,
+		WeightNode:       cfg.Correlation.WeightNode,
+		WeightBGP:        cfg.Correlation.WeightBGP,
+		WeightSocial:     cfg.Correlation.WeightSocial,
+		NodeFailRatio:    cfg.Correlation.NodeFailRatio,
+		SocialSpikeX:     cfg.Correlation.SocialSpikeX,
+		MinReliableNodes: cfg.Correlation.MinReliableNodes,
+		WatchASNs:        cfg.BGP.WatchASNs,
+		Calibration:      cfg.Calibration,
+	}, logger)
+
+	if alertDispatcher != nil {
+		engine.OnStateChange(func(target models.Target, prev, curr string, result models.CorrelationResult) {
+			// NEVER alert on ANCHOR targets
+			if target.Category == "ANCHOR" {
+				return
+			}
+			alertDispatcher.SendAlert(ctx, target, prev, curr, result)
+		})
+	}
+
+	go engine.Run(ctx)
+	logger.Info("correlation engine started",
+		zap.Int("interval_sec", cfg.Correlation.IntervalSeconds),
+		zap.Int("window_min", cfg.Correlation.WindowMinutes))
+}
+
+func startLocalProberAgent(ctx context.Context, cfg *config.CentralConfig, db *storage.DB, logger *zap.Logger) {
+	localNodeID := "node-eu-central"
+	for _, n := range cfg.Nodes {
+		if n.Country == "AZ" {
+			localNodeID = n.NodeID
+			break
+		}
+	}
+
+	prober := probe.New(
+		localNodeID,
+		"eu-frankfurt",
+		cfg.Targets,
+		cfg.Probe.TCPTimeout,
+		cfg.Probe.HTTPTimeout,
+		logger,
+	)
+
+	go runLocalProber(ctx, prober, db, cfg.Probe.IntervalSeconds, localNodeID, logger)
+}
+
+func startHTTPServer(cfg *config.CentralConfig, db *storage.DB, logger *zap.Logger) *http.Server {
+	apiServer := api.New(db, cfg.Server.HMACSecret, cfg.Nodes, cfg.Targets, logger)
+	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+
+	httpServer := &http.Server{
+		Addr:         addr,
+		Handler:      apiServer.Handler(),
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	go func() {
+		logger.Info("http server starting", zap.String("addr", addr))
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Fatal("http server error", zap.Error(err))
+		}
+	}()
+
+	return httpServer
 }

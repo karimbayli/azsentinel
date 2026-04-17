@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"io"
 	"strings"
@@ -686,6 +687,9 @@ func (db *DB) StreamExportCSV(ctx context.Context, w io.Writer) error {
 	}
 	defer rows.Close()
 
+	cw := csv.NewWriter(w)
+	defer cw.Flush()
+
 	for rows.Next() {
 		var (
 			t              time.Time
@@ -708,10 +712,25 @@ func (db *DB) StreamExportCSV(ctx context.Context, w io.Writer) error {
 			&errorType, &errorDetail); err != nil {
 			return fmt.Errorf("scan export: %w", err)
 		}
-		fmt.Fprintf(w, "%s,%s,%s,%s,%d,%t,%d,%d,%d,%d,%t,%s,%s\n",
-			t.Format(time.RFC3339), nodeID, targetURL, targetCategory,
-			tcpDialMs, tcpSuccess, tlsHandshakeMs, httpStatus,
-			ttfbMs, totalMs, nodeReliable, errorType, errorDetail)
+
+		record := []string{
+			t.Format(time.RFC3339),
+			nodeID,
+			targetURL,
+			targetCategory,
+			fmt.Sprintf("%d", tcpDialMs),
+			fmt.Sprintf("%t", tcpSuccess),
+			fmt.Sprintf("%d", tlsHandshakeMs),
+			fmt.Sprintf("%d", httpStatus),
+			fmt.Sprintf("%d", ttfbMs),
+			fmt.Sprintf("%d", totalMs),
+			fmt.Sprintf("%t", nodeReliable),
+			errorType,
+			errorDetail,
+		}
+		if err := cw.Write(record); err != nil {
+			return fmt.Errorf("write csv record: %w", err)
+		}
 	}
 	return rows.Err()
 }
