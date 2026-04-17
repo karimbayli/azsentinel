@@ -128,6 +128,13 @@ func (e *Engine) assess(ctx context.Context) {
 		return
 	}
 
+	// Fetch all latest correlations in a single query to prevent N+1 queries in the loop
+	latestCorrelations, err := e.db.GetAllLatestCorrelations(assessCtx)
+	if err != nil {
+		e.logger.Error("failed to get all previous correlations", zap.Error(err))
+		latestCorrelations = make(map[string]*models.CorrelationResult) // Fallback to empty
+	}
+
 	for _, target := range targets {
 		// NEVER include ANCHOR targets in correlation
 		if target.Category == "ANCHOR" {
@@ -136,11 +143,8 @@ func (e *Engine) assess(ctx context.Context) {
 
 		// FIX C-2: Query previous state BEFORE computing and storing new result
 		var prevStatus string
-		prev, err := e.db.GetLatestCorrelation(assessCtx, target.URL)
-		if err != nil {
-			e.logger.Error("failed to get previous correlation", zap.Error(err))
-			prevStatus = "HEALTHY"
-		} else if prev != nil {
+		prev := latestCorrelations[target.URL]
+		if prev != nil {
 			prevStatus = prev.Status
 		} else {
 			prevStatus = "HEALTHY"
