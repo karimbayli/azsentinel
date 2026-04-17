@@ -27,7 +27,7 @@ type Server struct {
 	logger     *zap.Logger
 	mux        *http.ServeMux
 	version    string
-	nodeSet    map[string]bool // FIX H-3: registered node IDs for validation
+	nodeMap    map[string]models.Node // FIX H-3: registered node IDs for validation
 
 	// FIX A-1: Anti-replay nonce cache
 	nonceMu    sync.Mutex
@@ -41,10 +41,10 @@ const (
 
 // New creates a new API server.
 func New(db *storage.DB, hmacSecret string, nodes []models.Node, targets []models.Target, logger *zap.Logger) *Server {
-	// FIX H-3: Build registered node set for fast validation
-	nodeSet := make(map[string]bool, len(nodes))
+	// FIX H-3: Build registered node map for fast validation and lookup
+	nodeMap := make(map[string]models.Node, len(nodes))
 	for _, n := range nodes {
-		nodeSet[n.NodeID] = true
+		nodeMap[n.NodeID] = n
 	}
 
 	s := &Server{
@@ -55,7 +55,7 @@ func New(db *storage.DB, hmacSecret string, nodes []models.Node, targets []model
 		logger:     logger,
 		mux:        http.NewServeMux(),
 		version:    "1.0.0",
-		nodeSet:    nodeSet,
+		nodeMap:    nodeMap,
 		nonceCache: make(map[string]time.Time),
 	}
 	s.registerRoutes()
@@ -331,7 +331,7 @@ func (s *Server) handleIngestProbeBatch(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// FIX H-3: Validate that node_id is a registered node
-	if !s.nodeSet[batch.NodeID] {
+	if _, valid := s.nodeMap[batch.NodeID]; !valid {
 		s.logger.Warn("rejected probe batch from unregistered node",
 			zap.String("node_id", batch.NodeID),
 			zap.String("remote_addr", r.RemoteAddr))
@@ -548,12 +548,9 @@ func (s *Server) handleStatusTarget(w http.ResponseWriter, r *http.Request) {
 			if p.ErrorDetail != "" {
 				nps.Error = p.ErrorDetail
 			}
-			// Find region from nodes config
-			for _, n := range s.nodes {
-				if n.NodeID == p.NodeID {
-					nps.Region = n.Region
-					break
-				}
+			// Find region from nodeMap
+			if nodeInfo, exists := s.nodeMap[p.NodeID]; exists {
+				nps.Region = nodeInfo.Region
 			}
 			ts.NodeBreakdown = append(ts.NodeBreakdown, nps)
 		}
