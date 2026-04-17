@@ -112,6 +112,7 @@ func main() {
 			cfg.Alert.DedupMinutes,
 			logger,
 		)
+		go alertDispatcher.Run(ctx)
 		logger.Info("alert dispatcher initialized")
 	}
 
