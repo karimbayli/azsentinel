@@ -453,7 +453,8 @@ func (m *Monitor) lookupPrefixOrigin(prefix string, peerAS int) int {
 	defer m.prefixMu.RUnlock()
 
 	key := prefixKey(prefix, peerAS)
-	if ps, ok := m.prefixStates[key]; ok {
+	ps, ok := m.prefixStates[key]
+	if ok {
 		return ps.OriginASN
 	}
 	return 0
