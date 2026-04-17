@@ -80,9 +80,9 @@ func (s *Server) cleanNonceCache() {
 	}
 }
 
-// Handler returns the HTTP handler for the API with rate limiting (FIX H-1).
+// Handler returns the HTTP handler for the API with explicit CORS configuration and rate limiting.
 func (s *Server) Handler() http.Handler {
-	return s.withRateLimit(s.mux)
+	return s.withCORS(s.withRateLimit(s.mux))
 }
 
 // registerRoutes sets up all API routes.
@@ -189,6 +189,22 @@ func (rl *rateLimiter) cleanup() {
 
 // Global rate limiter: 120 requests per minute per IP
 var globalRL = newRateLimiter(120, time.Minute)
+
+// withCORS adds explicit CORS headers to the response, allowing cross-origin requests.
+func (s *Server) withCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Sentinel-Signature, X-Sentinel-Node")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
 
 // withRateLimit wraps the handler with per-IP rate limiting (FIX H-1).
 func (s *Server) withRateLimit(next http.Handler) http.Handler {
