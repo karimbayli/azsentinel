@@ -396,17 +396,22 @@ func (s *Server) handleIngestProbeBatch(w http.ResponseWriter, r *http.Request) 
 	// FIX A-5: Validate individual probe timestamps
 	now := time.Now().UTC()
 	maxAge := 10 * time.Minute
-	for i, pr := range batch.Results {
+	var validResults []models.ProbeResult
+	for _, pr := range batch.Results {
 		if pr.Time.After(now.Add(60 * time.Second)) {
 			// Clamp future timestamps to now
-			batch.Results[i].Time = now
+			pr.Time = now
+			validResults = append(validResults, pr)
 		} else if pr.Time.Before(now.Add(-maxAge)) {
-			// Allow up to 10 min old (for buffered results), log older ones
-			s.logger.Debug("probe result has old timestamp",
+			// Drop if older than 10 minutes to prevent processing old data
+			s.logger.Debug("probe result has old timestamp, dropping",
 				zap.String("node_id", batch.NodeID),
 				zap.Time("result_time", pr.Time))
+		} else {
+			validResults = append(validResults, pr)
 		}
 	}
+	batch.Results = validResults
 
 	s.logger.Info("received probe batch",
 		zap.String("node_id", batch.NodeID),
