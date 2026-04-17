@@ -143,12 +143,12 @@ func (m *Monitor) Run(ctx context.Context) {
 	go m.prefixStateCleanupLoop(ctx)
 
 	var wg sync.WaitGroup
-	for _, collector := range m.collectors {
+	for _, collName := range m.collectors {
 		wg.Add(1)
 		go func(coll string) {
 			defer wg.Done()
 			m.runCollector(ctx, coll)
-		}(collector)
+		}(collName)
 	}
 
 	m.logger.Info("bgp monitor started",
