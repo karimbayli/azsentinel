@@ -21,7 +21,7 @@ var keywordsRU = []string{"не работает", "интернет пропа�
 var keywordsEN = []string{"internet outage", "internet down", "not working in baku", "Azerbaijan internet", "Azerbaijan outage"}
 
 // Location hints for Azerbaijan.
-var locationHints = []string{"baku", "ganja", "sumqayit", "bakı", "gəncə", "sumqayıt"}
+var locationHints = []string{"baku", "ganja", "sumqayit", "bakı", "gəncə", "sumqayıt", "azerbaijan", "azərbaycan"}
 
 // AllKeywords returns all keywords across languages.
 func AllKeywords() []string {
@@ -233,6 +233,29 @@ func (m *Monitor) scanChannel(ctx context.Context, channelID int64) (int, []stri
 		text := strings.ToLower(msg.Text)
 		for _, kw := range AllKeywords() {
 			if strings.Contains(text, strings.ToLower(kw)) {
+				// Check if this is an English keyword
+				isEN := false
+				for _, enKw := range keywordsEN {
+					if strings.ToLower(kw) == strings.ToLower(enKw) {
+						isEN = true
+						break
+					}
+				}
+
+				// If it's an English keyword, require an AZ location hint
+				if isEN {
+					hasContext := false
+					for _, hint := range locationHints {
+						if strings.Contains(text, strings.ToLower(hint)) {
+							hasContext = true
+							break
+						}
+					}
+					if !hasContext {
+						continue // Skip if no AZ context found
+					}
+				}
+
 				mentions++
 				matchedKeywords = append(matchedKeywords, kw)
 				break // Count each message only once

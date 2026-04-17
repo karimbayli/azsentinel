@@ -76,12 +76,17 @@ func New(db *storage.DB, bgpMon *bgp.Monitor, socialMon *social.Monitor, cfg Con
 		minReliableNodes = 2 // FIX R-21: Require at least 2 reliable nodes
 	}
 
+	intervalSeconds := cfg.IntervalSeconds
+	if intervalSeconds <= 0 {
+		intervalSeconds = 30 // Default 30s interval
+	}
+
 	return &Engine{
 		db:                     db,
 		bgpMonitor:             bgpMon,
 		socialMonitor:          socialMon,
 		logger:                 logger,
-		intervalSeconds:        cfg.IntervalSeconds,
+		intervalSeconds:        intervalSeconds,
 		windowMinutes:          cfg.WindowMinutes,
 		weightNode:             cfg.WeightNode,
 		weightBGP:              cfg.WeightBGP,
@@ -128,7 +133,20 @@ func (e *Engine) assess(ctx context.Context) {
 		return
 	}
 
+	// Fetch all latest correlations in a single query to prevent N+1 queries in the loop
+	latestCorrelations, err := e.db.GetAllLatestCorrelations(assessCtx)
+	if err != nil {
+		e.logger.Error("failed to get all previous correlations", zap.Error(err))
+		latestCorrelations = make(map[string]*models.CorrelationResult) // Fallback to empty
+	}
+
 	for _, target := range targets {
+		// Stop if timeout reached
+		if err := assessCtx.Err(); err != nil {
+			e.logger.Warn("assessment cycle timed out, stopping early", zap.Error(err))
+			return
+		}
+
 		// NEVER include ANCHOR targets in correlation
 		if target.Category == "ANCHOR" {
 			continue
@@ -136,11 +154,8 @@ func (e *Engine) assess(ctx context.Context) {
 
 		// FIX C-2: Query previous state BEFORE computing and storing new result
 		var prevStatus string
-		prev, err := e.db.GetLatestCorrelation(assessCtx, target.URL)
-		if err != nil {
-			e.logger.Error("failed to get previous correlation", zap.Error(err))
-			prevStatus = "HEALTHY"
-		} else if prev != nil {
+		prev := latestCorrelations[target.URL]
+		if prev != nil {
 			prevStatus = prev.Status
 		} else {
 			prevStatus = "HEALTHY"
