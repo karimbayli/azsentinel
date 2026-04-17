@@ -158,6 +158,30 @@ func (p *Prober) probeTarget(ctx context.Context, targetURL, category string) mo
 	}
 
 	// Phase 0: DNS Resolution (FIX R-5)
+	resolvedIP, err := p.measureDNS(ctx, host, &result)
+	if err != nil {
+		return result
+	}
+
+	// Phase 1: TCP Dial (to resolved IP)
+	conn, err := p.measureTCP(resolvedIP, port, &result)
+	if err != nil {
+		return result
+	}
+
+	// Phase 2: TLS Handshake over the SAME connection
+	err = p.measureTLS(ctx, host, port, conn, &result)
+	if err != nil {
+		return result
+	}
+
+	// Phase 3: HTTP GET (TTFB measured from HTTP request start)
+	p.measureHTTP(ctx, targetURL, &result)
+
+	return result
+}
+
+func (p *Prober) measureDNS(ctx context.Context, host string, result *models.ProbeResult) (string, error) {
 	// Skip for raw IP targets (e.g., https://1.1.1.1)
 	resolvedIP := host
 	if net.ParseIP(host) == nil {
@@ -171,7 +195,7 @@ func (p *Prober) probeTarget(ctx context.Context, targetURL, category string) mo
 			// FIX A-10: Classify DNS error into specific sub-types
 			result.ErrorType = classifyDNSError(err)
 			result.ErrorDetail = err.Error()
-			return result
+			return "", err
 		}
 
 		if len(ips) > 0 {
@@ -179,8 +203,10 @@ func (p *Prober) probeTarget(ctx context.Context, targetURL, category string) mo
 			result.DNSResolvedIP = resolvedIP
 		}
 	}
+	return resolvedIP, nil
+}
 
-	// Phase 1: TCP Dial (to resolved IP)
+func (p *Prober) measureTCP(resolvedIP, port string, result *models.ProbeResult) (net.Conn, error) {
 	tcpStart := time.Now()
 	conn, err := net.DialTimeout("tcp", net.JoinHostPort(resolvedIP, port), p.tcpTimeout)
 	tcpDuration := time.Since(tcpStart)
@@ -190,11 +216,13 @@ func (p *Prober) probeTarget(ctx context.Context, targetURL, category string) mo
 		result.TCPSuccess = false
 		result.ErrorType = "TCP_DIAL"
 		result.ErrorDetail = err.Error()
-		return result
+		return nil, err
 	}
 	result.TCPSuccess = true
+	return conn, nil
+}
 
-	// Phase 2: TLS Handshake over the SAME connection
+func (p *Prober) measureTLS(ctx context.Context, host, port string, conn net.Conn, result *models.ProbeResult) error {
 	if port == "443" || port == "https" {
 		tlsStart := time.Now()
 		// ServerName must be the hostname, not the IP
@@ -209,7 +237,7 @@ func (p *Prober) probeTarget(ctx context.Context, targetURL, category string) mo
 			result.TLSValid = &valid
 			result.ErrorType = "TLS_HANDSHAKE"
 			result.ErrorDetail = err.Error()
-			return result
+			return err
 		}
 
 		state := tlsConn.ConnectionState()
@@ -226,8 +254,10 @@ func (p *Prober) probeTarget(ctx context.Context, targetURL, category string) mo
 	} else {
 		conn.Close()
 	}
+	return nil
+}
 
-	// Phase 3: HTTP GET (TTFB measured from HTTP request start)
+func (p *Prober) measureHTTP(ctx context.Context, targetURL string, result *models.ProbeResult) {
 	httpStart := time.Now()
 	var ttfb time.Duration
 	trace := &httptrace.ClientTrace{
@@ -240,7 +270,7 @@ func (p *Prober) probeTarget(ctx context.Context, targetURL, category string) mo
 	if err != nil {
 		result.ErrorType = "HTTP_REQUEST"
 		result.ErrorDetail = err.Error()
-		return result
+		return
 	}
 	req.Header.Set("User-Agent", "SentinelV2-Probe/1.0")
 
@@ -251,7 +281,7 @@ func (p *Prober) probeTarget(ctx context.Context, targetURL, category string) mo
 		result.ErrorType = "HTTP_GET"
 		result.ErrorDetail = err.Error()
 		result.TotalMs = int(httpDuration.Milliseconds())
-		return result
+		return
 	}
 	defer resp.Body.Close()
 	io.Copy(io.Discard, io.LimitReader(resp.Body, 1024*1024))
@@ -259,8 +289,6 @@ func (p *Prober) probeTarget(ctx context.Context, targetURL, category string) mo
 	result.HTTPStatus = resp.StatusCode
 	result.TTFBMs = int(ttfb.Milliseconds())
 	result.TotalMs = int(httpDuration.Milliseconds())
-
-	return result
 }
 
 // classifyDNSError inspects a DNS error and returns a specific error type.
