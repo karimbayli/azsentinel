@@ -56,6 +56,44 @@ func TestComputeHMACConsistency(t *testing.T) {
 	}
 }
 
+func TestWithCORS(t *testing.T) {
+	s := &Server{}
+
+	// A dummy handler that returns 200 OK
+	dummyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	corsHandler := s.withCORS(dummyHandler)
+
+	// Test GET request
+	reqGET := httptest.NewRequest(http.MethodGet, "/", nil)
+	rrGET := httptest.NewRecorder()
+	corsHandler.ServeHTTP(rrGET, reqGET)
+
+	if rrGET.Code != http.StatusOK {
+		t.Errorf("Expected status code 200 for GET, got %d", rrGET.Code)
+	}
+	if rrGET.Header().Get("Access-Control-Allow-Origin") != "*" {
+		t.Errorf("Expected Access-Control-Allow-Origin: *, got %s", rrGET.Header().Get("Access-Control-Allow-Origin"))
+	}
+	if rrGET.Header().Get("Access-Control-Allow-Methods") != "GET, POST, OPTIONS" {
+		t.Errorf("Expected Access-Control-Allow-Methods: GET, POST, OPTIONS, got %s", rrGET.Header().Get("Access-Control-Allow-Methods"))
+	}
+
+	// Test OPTIONS request (preflight)
+	reqOPTIONS := httptest.NewRequest(http.MethodOptions, "/", nil)
+	rrOPTIONS := httptest.NewRecorder()
+	corsHandler.ServeHTTP(rrOPTIONS, reqOPTIONS)
+
+	if rrOPTIONS.Code != http.StatusNoContent {
+		t.Errorf("Expected status code 204 for OPTIONS, got %d", rrOPTIONS.Code)
+	}
+	if rrOPTIONS.Header().Get("Access-Control-Allow-Origin") != "*" {
+		t.Errorf("Expected Access-Control-Allow-Origin: *, got %s", rrOPTIONS.Header().Get("Access-Control-Allow-Origin"))
+	}
+}
+
 func TestAntiReplayNonce(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	// Create a Server without a real DB. We will stop testing logic before hitting the DB.

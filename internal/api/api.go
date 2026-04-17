@@ -27,7 +27,7 @@ type Server struct {
 	logger     *zap.Logger
 	mux        *http.ServeMux
 	version    string
-	nodeSet    map[string]bool // FIX H-3: registered node IDs for validation
+	nodeMap    map[string]models.Node // FIX H-3: registered nodes for validation and fast lookup
 
 	// FIX A-1: Anti-replay nonce cache
 	nonceMu    sync.Mutex
@@ -41,10 +41,10 @@ const (
 
 // New creates a new API server.
 func New(db *storage.DB, hmacSecret string, nodes []models.Node, targets []models.Target, logger *zap.Logger) *Server {
-	// FIX H-3: Build registered node set for fast validation
-	nodeSet := make(map[string]bool, len(nodes))
+	// FIX H-3: Build registered node map for fast validation and lookup
+	nodeMap := make(map[string]models.Node, len(nodes))
 	for _, n := range nodes {
-		nodeSet[n.NodeID] = true
+		nodeMap[n.NodeID] = n
 	}
 
 	s := &Server{
@@ -55,7 +55,7 @@ func New(db *storage.DB, hmacSecret string, nodes []models.Node, targets []model
 		logger:     logger,
 		mux:        http.NewServeMux(),
 		version:    "1.0.0",
-		nodeSet:    nodeSet,
+		nodeMap:    nodeMap,
 		nonceCache: make(map[string]time.Time),
 	}
 	s.registerRoutes()
@@ -80,9 +80,9 @@ func (s *Server) cleanNonceCache() {
 	}
 }
 
-// Handler returns the HTTP handler for the API with rate limiting (FIX H-1).
+// Handler returns the HTTP handler for the API with explicit CORS configuration and rate limiting.
 func (s *Server) Handler() http.Handler {
-	return s.withRateLimit(s.mux)
+	return s.withCORS(s.withRateLimit(s.mux))
 }
 
 // registerRoutes sets up all API routes.
@@ -189,6 +189,22 @@ func (rl *rateLimiter) cleanup() {
 
 // Global rate limiter: 120 requests per minute per IP
 var globalRL = newRateLimiter(120, time.Minute)
+
+// withCORS adds explicit CORS headers to the response, allowing cross-origin requests.
+func (s *Server) withCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Sentinel-Signature, X-Sentinel-Node")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
 
 // withRateLimit wraps the handler with per-IP rate limiting (FIX H-1).
 func (s *Server) withRateLimit(next http.Handler) http.Handler {
@@ -331,7 +347,7 @@ func (s *Server) handleIngestProbeBatch(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// FIX H-3: Validate that node_id is a registered node
-	if !s.nodeSet[batch.NodeID] {
+	if _, exists := s.nodeMap[batch.NodeID]; !exists {
 		s.logger.Warn("rejected probe batch from unregistered node",
 			zap.String("node_id", batch.NodeID),
 			zap.String("remote_addr", r.RemoteAddr))
@@ -340,47 +356,62 @@ func (s *Server) handleIngestProbeBatch(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// FIX A-1: Anti-replay — validate timestamp freshness
-	if batch.SentAt > 0 {
-		batchTime := time.Unix(batch.SentAt, 0)
-		skew := time.Since(batchTime)
-		if skew < -maxClockSkew || skew > maxClockSkew {
-			s.logger.Warn("rejected stale/future batch",
-				zap.String("node_id", batch.NodeID),
-				zap.Duration("skew", skew))
-			s.errorJSON(w, http.StatusBadRequest, "batch timestamp too old or in future")
-			return
-		}
+	if batch.SentAt <= 0 {
+		s.logger.Warn("rejected batch without timestamp",
+			zap.String("node_id", batch.NodeID))
+		s.errorJSON(w, http.StatusBadRequest, "missing batch timestamp")
+		return
+	}
+
+	batchTime := time.Unix(batch.SentAt, 0)
+	skew := time.Since(batchTime)
+	if skew < -maxClockSkew || skew > maxClockSkew {
+		s.logger.Warn("rejected stale/future batch",
+			zap.String("node_id", batch.NodeID),
+			zap.Duration("skew", skew))
+		s.errorJSON(w, http.StatusBadRequest, "batch timestamp too old or in future")
+		return
 	}
 
 	// FIX A-1: Anti-replay — check nonce uniqueness
-	if batch.Nonce != "" {
-		s.nonceMu.Lock()
-		if expiry, exists := s.nonceCache[batch.Nonce]; exists && time.Now().Before(expiry) {
-			s.nonceMu.Unlock()
-			s.logger.Warn("rejected replayed batch (duplicate nonce)",
-				zap.String("node_id", batch.NodeID),
-				zap.String("nonce", batch.Nonce))
-			s.errorJSON(w, http.StatusConflict, "duplicate nonce (replay detected)")
-			return
-		}
-		s.nonceCache[batch.Nonce] = time.Now().Add(2 * maxClockSkew)
-		s.nonceMu.Unlock()
+	if batch.Nonce == "" {
+		s.logger.Warn("rejected batch without nonce",
+			zap.String("node_id", batch.NodeID))
+		s.errorJSON(w, http.StatusBadRequest, "missing batch nonce")
+		return
 	}
+
+	s.nonceMu.Lock()
+	if expiry, exists := s.nonceCache[batch.Nonce]; exists && time.Now().Before(expiry) {
+		s.nonceMu.Unlock()
+		s.logger.Warn("rejected replayed batch (duplicate nonce)",
+			zap.String("node_id", batch.NodeID),
+			zap.String("nonce", batch.Nonce))
+		s.errorJSON(w, http.StatusConflict, "duplicate nonce (replay detected)")
+		return
+	}
+	s.nonceCache[batch.Nonce] = time.Now().Add(2 * maxClockSkew)
+	s.nonceMu.Unlock()
 
 	// FIX A-5: Validate individual probe timestamps
 	now := time.Now().UTC()
 	maxAge := 10 * time.Minute
-	for i, pr := range batch.Results {
+	var validResults []models.ProbeResult
+	for _, pr := range batch.Results {
 		if pr.Time.After(now.Add(60 * time.Second)) {
 			// Clamp future timestamps to now
-			batch.Results[i].Time = now
+			pr.Time = now
+			validResults = append(validResults, pr)
 		} else if pr.Time.Before(now.Add(-maxAge)) {
-			// Allow up to 10 min old (for buffered results), log older ones
-			s.logger.Debug("probe result has old timestamp",
+			// Drop if older than 10 minutes to prevent processing old data
+			s.logger.Debug("probe result has old timestamp, dropping",
 				zap.String("node_id", batch.NodeID),
 				zap.Time("result_time", pr.Time))
+		} else {
+			validResults = append(validResults, pr)
 		}
 	}
+	batch.Results = validResults
 
 	s.logger.Info("received probe batch",
 		zap.String("node_id", batch.NodeID),
@@ -549,11 +580,8 @@ func (s *Server) handleStatusTarget(w http.ResponseWriter, r *http.Request) {
 				nps.Error = p.ErrorDetail
 			}
 			// Find region from nodes config
-			for _, n := range s.nodes {
-				if n.NodeID == p.NodeID {
-					nps.Region = n.Region
-					break
-				}
+			if n, ok := s.nodeMap[p.NodeID]; ok {
+				nps.Region = n.Region
 			}
 			ts.NodeBreakdown = append(ts.NodeBreakdown, nps)
 		}
