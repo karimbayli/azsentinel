@@ -76,12 +76,17 @@ func New(db *storage.DB, bgpMon *bgp.Monitor, socialMon *social.Monitor, cfg Con
 		minReliableNodes = 2 // FIX R-21: Require at least 2 reliable nodes
 	}
 
+	intervalSeconds := cfg.IntervalSeconds
+	if intervalSeconds <= 0 {
+		intervalSeconds = 30 // Default 30s interval
+	}
+
 	return &Engine{
 		db:                     db,
 		bgpMonitor:             bgpMon,
 		socialMonitor:          socialMon,
 		logger:                 logger,
-		intervalSeconds:        cfg.IntervalSeconds,
+		intervalSeconds:        intervalSeconds,
 		windowMinutes:          cfg.WindowMinutes,
 		weightNode:             cfg.WeightNode,
 		weightBGP:              cfg.WeightBGP,
@@ -136,6 +141,12 @@ func (e *Engine) assess(ctx context.Context) {
 	}
 
 	for _, target := range targets {
+		// Stop if timeout reached
+		if err := assessCtx.Err(); err != nil {
+			e.logger.Warn("assessment cycle timed out, stopping early", zap.Error(err))
+			return
+		}
+
 		// NEVER include ANCHOR targets in correlation
 		if target.Category == "ANCHOR" {
 			continue
