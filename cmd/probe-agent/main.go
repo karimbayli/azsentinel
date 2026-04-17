@@ -171,7 +171,8 @@ func sendBatch(ctx context.Context, cfg *config.ProbeAgentConfig, batch models.P
 	req.Header.Set("X-Sentinel-Node", cfg.NodeID)
 
 	// FIX A-9: Reuse shared HTTP client instead of creating per-request
-	resp, err := sharedHTTPClient.Do(req)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("post to central: %w", err)
 	}
