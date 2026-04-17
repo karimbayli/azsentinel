@@ -230,7 +230,16 @@ func (p *Prober) probeTarget(ctx context.Context, targetURL, category string) mo
 	// Phase 3: HTTP GET (TTFB measured from HTTP request start)
 	httpStart := time.Now()
 	var ttfb time.Duration
+	var httpDnsStart time.Time
 	trace := &httptrace.ClientTrace{
+		DNSStart: func(info httptrace.DNSStartInfo) {
+			httpDnsStart = time.Now()
+		},
+		DNSDone: func(info httptrace.DNSDoneInfo) {
+			if !httpDnsStart.IsZero() {
+				result.DNSResolveMs += int(time.Since(httpDnsStart).Milliseconds())
+			}
+		},
 		GotFirstResponseByte: func() {
 			ttfb = time.Since(httpStart)
 		},
