@@ -20,6 +20,14 @@ const (
 	HysteresisBand    = 0.05 // FIX A-13: prevent oscillation at boundaries
 )
 
+type targetSignals struct {
+	nodeSignal   float64
+	bgpSignal    float64
+	socialSignal float64
+	totalNodes   int
+	failingNodes int
+}
+
 // Engine correlates multiple signals to assess target health.
 type Engine struct {
 	db            *storage.DB
@@ -170,20 +178,13 @@ func (e *Engine) assess(ctx context.Context) {
 	}
 }
 
-// assessTarget computes the correlation result for a single target.
-// FIX A-13: prevStatus is used for hysteresis — recovery requires dropping
-// below the threshold by HysteresisBand to prevent oscillation.
-func (e *Engine) assessTarget(ctx context.Context, target models.Target, prevStatus string) *models.CorrelationResult {
-	now := time.Now().UTC()
-	window := time.Duration(e.windowMinutes) * time.Minute
+func (e *Engine) gatherSignals(ctx context.Context, target models.Target, window time.Duration) (*targetSignals, error) {
+	sigs := &targetSignals{}
 
 	// Signal 1: Multi-node failure agreement
 	probes, err := e.db.GetRecentProbeResults(ctx, target.URL, window)
 	if err != nil {
-		e.logger.Error("failed to get probe results for correlation",
-			zap.String("target", target.URL),
-			zap.Error(err))
-		return nil
+		return nil, err
 	}
 
 	// Group by node, only count reliable nodes, use latest probe per node
@@ -196,8 +197,7 @@ func (e *Engine) assessTarget(ctx context.Context, target models.Target, prevSta
 
 	totalReliable := 0
 	failingReliable := 0
-	totalNodes := len(nodeLatest)
-	failingNodes := 0
+	sigs.totalNodes = len(nodeLatest)
 	for _, p := range nodeLatest {
 		if !p.NodeReliable {
 			continue
@@ -205,7 +205,7 @@ func (e *Engine) assessTarget(ctx context.Context, target models.Target, prevSta
 		totalReliable++
 		if !p.TCPSuccess || (p.HTTPStatus > 0 && (p.HTTPStatus >= 500 || p.HTTPStatus == 0)) {
 			failingReliable++
-			failingNodes++
+			sigs.failingNodes++
 		}
 	}
 
@@ -215,27 +215,25 @@ func (e *Engine) assessTarget(ctx context.Context, target models.Target, prevSta
 			if p.NodeReliable {
 				continue // Already counted
 			}
-			failingNodes++
+			sigs.failingNodes++
 		}
 	}
 
-	var nodeSignal float64
 	if totalReliable >= e.minReliableNodes && totalReliable > 0 {
 		// FIX R-21: Only fire node signal if we have enough reliable nodes
 		ratio := float64(failingReliable) / float64(totalReliable)
 		if ratio > e.nodeFailRatio {
-			nodeSignal = e.weightNode
+			sigs.nodeSignal = e.weightNode
 		}
 	}
 
 	// Signal 2: BGP route withdrawal (FIX C-4: threshold-based, not single-event)
 	// A single route flap should NOT trigger all targets. We require a minimum
 	// number of distinct prefix withdrawals to consider it significant.
-	var bgpSignal float64
 	if e.bgpMonitor != nil {
 		withdrawalCount := e.bgpMonitor.CountRecentWithdrawals(window)
 		if withdrawalCount >= e.bgpWithdrawalThreshold {
-			bgpSignal = e.weightBGP
+			sigs.bgpSignal = e.weightBGP
 		}
 	}
 
@@ -243,34 +241,51 @@ func (e *Engine) assessTarget(ctx context.Context, target models.Target, prevSta
 	// FIX C-5: Social signal is inherently global (mentions about "internet outage"
 	// are not per-target). We apply a discount factor: only 50% weight unless
 	// the node signal also fires, confirming the social spike aligns with observed failures.
-	var socialSignal float64
 	if e.socialMonitor != nil {
 		sig := e.socialMonitor.GetLatestSignal()
 		if sig != nil && sig.Ratio > e.socialSpikeX {
-			if nodeSignal > 0 {
+			if sigs.nodeSignal > 0 {
 				// Social + node agreement = full weight
-				socialSignal = e.weightSocial
+				sigs.socialSignal = e.weightSocial
 			} else {
 				// Social alone = halved weight (unconfirmed)
-				socialSignal = e.weightSocial * 0.5
+				sigs.socialSignal = e.weightSocial * 0.5
 			}
 		}
 	}
 
-	confidence := nodeSignal + bgpSignal + socialSignal
+	return sigs, nil
+}
+
+// assessTarget computes the correlation result for a single target.
+// FIX A-13: prevStatus is used for hysteresis — recovery requires dropping
+// below the threshold by HysteresisBand to prevent oscillation.
+func (e *Engine) assessTarget(ctx context.Context, target models.Target, prevStatus string) *models.CorrelationResult {
+	now := time.Now().UTC()
+	window := time.Duration(e.windowMinutes) * time.Minute
+
+	sigs, err := e.gatherSignals(ctx, target, window)
+	if err != nil {
+		e.logger.Error("failed to get probe results for correlation",
+			zap.String("target", target.URL),
+			zap.Error(err))
+		return nil
+	}
+
+	confidence := sigs.nodeSignal + sigs.bgpSignal + sigs.socialSignal
 
 	// FIX A-13: Determine status with hysteresis
 	status := determineStatus(confidence, prevStatus)
 
 	// Build signals list
 	signals := []string{}
-	if nodeSignal > 0 {
+	if sigs.nodeSignal > 0 {
 		signals = append(signals, "MULTI_NODE_FAILURE")
 	}
-	if bgpSignal > 0 {
+	if sigs.bgpSignal > 0 {
 		signals = append(signals, "BGP_WITHDRAWAL")
 	}
-	if socialSignal > 0 {
+	if sigs.socialSignal > 0 {
 		signals = append(signals, "SOCIAL_SPIKE")
 	}
 
@@ -279,12 +294,12 @@ func (e *Engine) assessTarget(ctx context.Context, target models.Target, prevSta
 		TargetURL:     target.URL,
 		Status:        status,
 		Confidence:    confidence,
-		NodeSignal:    nodeSignal,
-		BGPSignal:     bgpSignal,
-		SocialSignal:  socialSignal,
+		NodeSignal:    sigs.nodeSignal,
+		BGPSignal:     sigs.bgpSignal,
+		SocialSignal:  sigs.socialSignal,
 		SignalsActive: signals,
-		TotalNodes:    totalNodes,
-		FailingNodes:  failingNodes,
+		TotalNodes:    sigs.totalNodes,
+		FailingNodes:  sigs.failingNodes,
 	}
 }
 
