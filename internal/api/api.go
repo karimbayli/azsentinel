@@ -118,7 +118,7 @@ func (s *Server) registerRoutes() {
 
 	// Static files — served with cache-busting headers
 	// Static files — no-cache for HTML, short TTL for assets
-	s.mux.Handle("GET /", s.withStaticCache(http.FileServer(http.Dir("static"))))
+	s.mux.Handle("GET /", s.withStaticCache(http.FileServer(http.Dir("frontend/dist"))))
 }
 
 // ============================================================
@@ -315,7 +315,9 @@ func (s *Server) handleMethodology(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) handleMethodologyPage(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, "static/methodology.html")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`<!DOCTYPE html><html><head><title>Methodology</title></head><body><h1>Methodology</h1><p>Methodology content here.</p></body></html>`))
 }
 
 func (s *Server) handleIngestProbeBatch(w http.ResponseWriter, r *http.Request) {
