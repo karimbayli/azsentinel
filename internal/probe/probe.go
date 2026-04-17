@@ -70,7 +70,8 @@ func (p *Prober) RunCycle(ctx context.Context) []models.ProbeResult {
 	var anchorResults []models.ProbeResult
 	for _, url := range AnchorURLs {
 		// FIX R-7: Per-probe timestamp
-		r := p.probeTarget(ctx, url, "ANCHOR")
+		startTime := time.Now().UTC()
+		r := p.probeTarget(ctx, url, "ANCHOR", startTime)
 		anchorResults = append(anchorResults, r)
 		if !r.TCPSuccess {
 			anchorFailures++
@@ -116,7 +117,8 @@ func (p *Prober) RunCycle(ctx context.Context) []models.ProbeResult {
 			defer func() { <-sem }()
 
 			// FIX R-7: Per-probe timestamp
-			r := p.probeTarget(ctx, target.URL, target.Category)
+			startTime := time.Now().UTC()
+			r := p.probeTarget(ctx, target.URL, target.Category, startTime)
 			r.NodeReliable = nodeReliable
 			resultCh <- r
 		}(t)
@@ -137,12 +139,9 @@ func (p *Prober) RunCycle(ctx context.Context) []models.ProbeResult {
 // probeTarget performs DNS → TCP → TLS → HTTP probe against a single target.
 // FIX R-5: DNS is now a separate measurement layer.
 // FIX R-7: Each probe gets its own timestamp at start of measurement.
-func (p *Prober) probeTarget(ctx context.Context, targetURL, category string) models.ProbeResult {
-	// FIX R-7: Timestamp at probe start, not cycle start
-	now := time.Now().UTC()
-
+func (p *Prober) probeTarget(ctx context.Context, targetURL, category string, startTime time.Time) models.ProbeResult {
 	result := models.ProbeResult{
-		Time:           now,
+		Time:           startTime,
 		NodeID:         p.nodeID,
 		TargetURL:      targetURL,
 		TargetCategory: category,
