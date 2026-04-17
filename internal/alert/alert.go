@@ -53,14 +53,6 @@ func (d *Dispatcher) SendAlert(ctx context.Context, target models.Target, prevSt
 		}
 	}
 	d.lastAlerts[target.URL] = time.Now()
-
-	// FIX A-8: Clean up stale entries (older than 3x dedup window)
-	maxAge := time.Duration(d.dedupMinutes*3) * time.Minute
-	for url, ts := range d.lastAlerts {
-		if time.Since(ts) > maxAge {
-			delete(d.lastAlerts, url)
-		}
-	}
 	d.mu.Unlock()
 
 	// Build alert message
@@ -169,6 +161,28 @@ func (d *Dispatcher) sendTelegram(ctx context.Context, text string) error {
 func (d *Dispatcher) HandleStatusCommand(ctx context.Context, statuses []models.TargetStatus) {
 	if err := d.SendStatusOverview(ctx, statuses); err != nil {
 		d.logger.Error("failed to send status overview", zap.Error(err))
+	}
+}
+
+// Run starts a background task to periodically clean up stale alert entries.
+func (d *Dispatcher) Run(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			d.mu.Lock()
+			maxAge := time.Duration(d.dedupMinutes*3) * time.Minute
+			for url, ts := range d.lastAlerts {
+				if time.Since(ts) > maxAge {
+					delete(d.lastAlerts, url)
+				}
+			}
+			d.mu.Unlock()
+		}
 	}
 }
 
