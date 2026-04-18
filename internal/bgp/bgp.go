@@ -66,7 +66,7 @@ type Monitor struct {
 	maxRecentCount int
 	cacheMaxAge    time.Duration
 
-	// FIX R-1/R-16: Prefix → origin ASN state table
+	// FIX R-16: Prefix → origin ASN state table
 	prefixMu      sync.RWMutex
 	prefixStates  map[string]*prefixState // key: "prefix:peerAS" for per-peer tracking
 	flapWindow    time.Duration
@@ -386,7 +386,6 @@ func (m *Monitor) processMessage(ctx context.Context, raw []byte, collector stri
 		for _, prefix := range ann.Prefixes {
 			// FIX R-3: Only process if the ORIGIN ASN is one we watch
 			if originASN > 0 && m.watchASNs[originASN] {
-				// FIX R-1: Track prefix → origin ASN mapping
 				m.updatePrefixState(prefix, update.PeerASN, originASN, "ANNOUNCED", eventTime)
 
 				event := models.BGPEvent{
@@ -403,11 +402,9 @@ func (m *Monitor) processMessage(ctx context.Context, raw []byte, collector stri
 		}
 	}
 
-	// Process withdrawals — FIX R-1: Look up origin ASN from prefix state table
+	// Process withdrawals
 	for _, wd := range update.Withdrawals {
 		for _, prefix := range wd.Prefixes {
-			// FIX R-1: Withdrawals have NO AS-path. Look up the origin ASN
-			// from our prefix state table (populated by prior announcements).
 			knownOrigin := m.lookupPrefixOrigin(prefix, update.PeerASN)
 			if knownOrigin > 0 && m.watchASNs[knownOrigin] {
 				m.updatePrefixState(prefix, update.PeerASN, knownOrigin, "WITHDRAWN", eventTime)
@@ -447,13 +444,13 @@ func prefixKey(prefix string, peerAS int) string {
 }
 
 // lookupPrefixOrigin returns the last known origin ASN for a prefix from a specific peer.
-// FIX R-1: This is the critical function that makes withdrawals work correctly.
 func (m *Monitor) lookupPrefixOrigin(prefix string, peerAS int) int {
 	m.prefixMu.RLock()
 	defer m.prefixMu.RUnlock()
 
 	key := prefixKey(prefix, peerAS)
-	if ps, ok := m.prefixStates[key]; ok {
+	ps, ok := m.prefixStates[key]
+	if ok {
 		return ps.OriginASN
 	}
 	return 0

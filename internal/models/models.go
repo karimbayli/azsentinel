@@ -8,7 +8,7 @@ type ProbeResult struct {
 	NodeID         string     `json:"node_id"`
 	TargetURL      string     `json:"target_url"`
 	TargetCategory string     `json:"target_category"`
-	DNSResolveMs   int        `json:"dns_resolve_ms,omitempty"` // FIX R-5: DNS layer
+	DNSResolveMs   int        `json:"dns_resolve_ms"` // FIX R-5: DNS layer
 	DNSResolvedIP  string     `json:"dns_resolved_ip,omitempty"`
 	DNSError       string     `json:"dns_error,omitempty"`
 	TCPDialMs      int        `json:"tcp_dial_ms"`

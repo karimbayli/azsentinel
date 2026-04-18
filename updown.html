@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Netwatch.az — API Telemetry</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header class="header">
+        <div class="header-brand">
+            <div class="brand-icon">
+                <svg viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2zm0 4.5l6.5 13h-13L12 6.5z"/></svg>
+            </div>
+            <div>
+                <div class="brand-name">Netwatch.az</div>
+                <div class="brand-sub">API Telemetry</div>
+            </div>
+        </div>
+
+        <div class="header-stats">
+            <div class="stat-item">
+                <span class="stat-dot" id="statDot"></span>
+                System: <strong id="topStatus">--</strong>
+            </div>
+            <div class="stat-sep"></div>
+            <div class="stat-item">Endpoints: <strong id="topEndpoints">--</strong></div>
+            <div class="stat-sep"></div>
+            <div class="stat-item">Incidents: <strong id="topIncidents">0</strong></div>
+            <div class="stat-sep"></div>
+            <div class="stat-item">Synced: <strong id="topLastScan">--:--:--</strong></div>
+        </div>
+
+        <button class="lang-btn" id="langToggle" onclick="toggleLang()">AZ</button>
+    </header>
+
+    <main class="page">
+
+        <!-- KPI row -->
+        <div class="kpi-row">
+            <div class="kpi-card">
+                <div class="kpi-label">Uptime</div>
+                <div class="kpi-value ok" id="kpiConfidence">--%</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Systems</div>
+                <div class="kpi-value neutral" id="kpiSystems">--</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Endpoints</div>
+                <div class="kpi-value neutral" id="kpiEndpoints">--</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">BGP Anomalies</div>
+                <div class="kpi-value ok" id="kpiBGP">0</div>
+            </div>
+        </div>
+
+        <!-- Map + System Health -->
+        <div class="mid-row">
+
+            <div class="map-card card">
+                <div class="card-header">
+                    <span class="card-title">Network Topology</span>
+                </div>
+                <div class="map-body" id="azMapContainer"></div>
+            </div>
+
+            <div class="systems-card">
+                <div class="card-header">
+                    <span class="card-title">System Health</span>
+                    <span class="badge ok" id="healthBadge">Loading…</span>
+                </div>
+                <div class="systems-body" id="systemList">
+                    <div style="padding:24px; text-align:center; color:var(--muted); font-size:13px;">
+                        Fetching from APIs…
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Incidents -->
+        <div>
+            <div class="section-title" style="margin-bottom:14px;">Active Outages &amp; Disruption Events</div>
+            <div class="incidents-grid" id="incidentGrid"></div>
+        </div>
+
+    </main>
+
+    <!-- Detail panel -->
+    <div class="overlay" id="overlay" onclick="closeDetail()"></div>
+    <aside class="detail-panel" id="detailPanel">
+        <div class="dp-header">
+            <div class="dp-top">
+                <span class="dp-name" id="dpName"></span>
+                <button class="dp-close" onclick="closeDetail()">✕</button>
+            </div>
+            <div class="dp-url" id="dpUrl"></div>
+            <div class="dp-status-row" id="dpStatusRow"></div>
+        </div>
+        <div class="dp-body" id="dpBody">
+            <div class="dp-loading">Loading…</div>
+        </div>
+    </aside>
+
+    <script src="i18n.js" defer></script>
+    <script src="app.js" defer></script>
+</body>
+</html>
