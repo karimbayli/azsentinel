@@ -525,8 +525,10 @@ func (m *Monitor) storeEvent(ctx context.Context, event models.BGPEvent) {
 		zap.String("prefix", event.Prefix),
 		zap.String("collector", event.Collector))
 
-	if err := m.db.InsertBGPEvent(ctx, event); err != nil {
-		m.logger.Error("failed to store bgp event", zap.Error(err))
+	if m.db != nil {
+		if err := m.db.InsertBGPEvent(ctx, event); err != nil {
+			m.logger.Error("failed to store bgp event", zap.Error(err))
+		}
 	}
 
 	m.mu.Lock()
